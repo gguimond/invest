@@ -45,6 +45,27 @@ TICKERS = {
     }
 }
 
+# Economic indicators (FRED data)
+# Note: Requires FRED API key from https://fred.stlouisfed.org/docs/api/api_key.html
+ECONOMIC_INDICATORS = {
+    "M2": {
+        "fred_series": "M2SL",  # M2 Money Stock (seasonally adjusted)
+        "name": "M2 Money Supply",
+        "unit": "Billions of Dollars",
+        "frequency": "monthly"
+    },
+    "M2_REAL": {
+        "fred_series": "M2REAL",  # Real M2 Money Stock
+        "name": "Real M2 Money Supply",
+        "unit": "Billions of 1982 Dollars",
+        "frequency": "monthly"
+    }
+}
+
+# FRED API configuration
+FRED_API_KEY = os.getenv("FRED_API_KEY", None)
+FRED_API_URL = "https://api.stlouisfed.org/fred/series/observations"
+
 # Technical analysis parameters
 TECHNICAL_PARAMS = {
     "rsi_period": 14,
@@ -67,7 +88,12 @@ DECISION_PARAMS = {
     "ai_bubble_high_threshold": 0.6,
     "ai_bubble_moderate_threshold": 0.4,
     "currency_risk_high": 2.5,
-    "currency_risk_moderate": 1.5
+    "currency_risk_moderate": 1.5,
+    # M2 Money Supply thresholds
+    "m2_growth_positive": 2.0,      # >2% YoY growth is positive
+    "m2_growth_strong": 5.0,        # >5% YoY growth is strong positive
+    "m2_growth_negative": -2.0,     # <-2% YoY growth is negative
+    "m2_lookback_months": 12        # Compare to 12 months ago
 }
 
 # Risk profiles

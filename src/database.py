@@ -74,6 +74,20 @@ class Database:
             )
         """)
         
+        # Economic Indicators table (M2, GDP, etc.)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS economic_indicators (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                indicator_name TEXT NOT NULL,
+                date DATE NOT NULL,
+                value REAL NOT NULL,
+                yoy_change REAL,
+                mom_change REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(indicator_name, date)
+            )
+        """)
+        
         # News Articles table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS news_articles (
@@ -285,6 +299,20 @@ class Database:
         # Database file size
         stats['db_size_mb'] = Path(self.db_path).stat().st_size / (1024 * 1024)
         
+        # M2 Money Supply stats
+        cursor.execute("""
+            SELECT COUNT(*) as count, MIN(date) as first_date, MAX(date) as last_date
+            FROM economic_indicators
+            WHERE indicator_name = 'M2'
+        """)
+        m2_result = cursor.fetchone()
+        stats['m2_records'] = m2_result['count'] if m2_result else 0
+        stats['m2_first_date'] = m2_result['first_date'] if m2_result else None
+        stats['m2_last_date'] = m2_result['last_date'] if m2_result else None
+        
+        # Latest M2 YoY growth
+        stats['m2_yoy_growth'] = self.get_latest_m2_growth()
+        
         return stats
     
     def store_currency_adjusted_returns(self, df: pd.DataFrame):
@@ -346,3 +374,137 @@ class Database:
             csv_path = output_path / f"{table}.csv"
             df.to_csv(csv_path, index=False)
             console.print(f"[green]✓[/green] Exported {table} to {csv_path}")
+    
+    def store_economic_indicator(self, indicator_name: str, df: pd.DataFrame):
+        """
+        Store economic indicator data (e.g., M2 Money Supply)
+        
+        Args:
+            indicator_name: Name of the indicator (M2, GDP, etc.)
+            df: DataFrame with date index and 'value' column
+        """
+        if df.empty:
+            return
+        
+        df = df.copy()
+        
+        # Reset index to get date as a column
+        df.reset_index(inplace=True)
+        
+        # Rename index column to 'date' if needed
+        if df.columns[0] != 'date':
+            df.rename(columns={df.columns[0]: 'date'}, inplace=True)
+        
+        # Convert date to string format
+        df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
+        
+        # Calculate year-over-year change
+        if 'value' in df.columns:
+            df = df.sort_values('date')
+            df['yoy_change'] = df['value'].pct_change(12) * 100  # 12 months for YoY
+            df['mom_change'] = df['value'].pct_change(1) * 100   # Month over month
+        
+        df['indicator_name'] = indicator_name
+        
+        cursor = self.conn.cursor()
+        records = df.to_dict('records')
+        
+        for record in records:
+            cursor.execute("""
+                INSERT OR REPLACE INTO economic_indicators 
+                (indicator_name, date, value, yoy_change, mom_change)
+                VALUES (:indicator_name, :date, :value, :yoy_change, :mom_change)
+            """, record)
+        
+        self.conn.commit()
+        console.print(f"[green]✓[/green] Stored {len(df)} records for {indicator_name}")
+    
+    def get_economic_indicator(self, indicator_name: str, 
+                               start_date: Optional[str] = None,
+                               end_date: Optional[str] = None) -> pd.DataFrame:
+        """
+        Retrieve economic indicator data
+        
+        Args:
+            indicator_name: Name of the indicator
+            start_date: Start date (YYYY-MM-DD)
+            end_date: End date (YYYY-MM-DD)
+        
+        Returns:
+            DataFrame with indicator data
+        """
+        query = """
+            SELECT date, value, yoy_change, mom_change
+            FROM economic_indicators
+            WHERE indicator_name = ?
+        """
+        params = [indicator_name]
+        
+        if start_date:
+            query += " AND date >= ?"
+            params.append(start_date)
+        
+        if end_date:
+            query += " AND date <= ?"
+            params.append(end_date)
+        
+        query += " ORDER BY date ASC"
+        
+        df = pd.read_sql_query(query, self.conn, params=params, parse_dates=['date'])
+        
+        if not df.empty:
+            df.set_index('date', inplace=True)
+        
+        return df
+    
+    def get_latest_m2_growth(self) -> Optional[float]:
+        """Get the most recent M2 year-over-year growth rate"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT yoy_change
+            FROM economic_indicators
+            WHERE indicator_name = 'M2' AND yoy_change IS NOT NULL
+            ORDER BY date DESC
+            LIMIT 1
+        """)
+        result = cursor.fetchone()
+        return result['yoy_change'] if result else None
+    
+    def get_latest_gdp_growth(self) -> Optional[float]:
+        """Get the most recent GDP year-over-year growth rate"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT yoy_change
+            FROM economic_indicators
+            WHERE indicator_name = 'GDP' AND yoy_change IS NOT NULL
+            ORDER BY date DESC
+            LIMIT 1
+        """)
+        result = cursor.fetchone()
+        return result['yoy_change'] if result else None
+    
+    def get_latest_m2_level(self) -> Optional[float]:
+        """Get the most recent M2 money supply level"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT value
+            FROM economic_indicators
+            WHERE indicator_name = 'M2'
+            ORDER BY date DESC
+            LIMIT 1
+        """)
+        result = cursor.fetchone()
+        return result['value'] if result else None
+    
+    def get_latest_gdp_level(self) -> Optional[float]:
+        """Get the most recent GDP level"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT value
+            FROM economic_indicators
+            WHERE indicator_name = 'GDP'
+            ORDER BY date DESC
+            LIMIT 1
+        """)
+        result = cursor.fetchone()
+        return result['value'] if result else None

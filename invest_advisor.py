@@ -80,9 +80,29 @@ def initialize_database(force: bool = False):
             db.store_currency_adjusted_returns(adj_returns)
             console.print("[green]✓[/green] Currency-adjusted returns calculated")
         
+        # Fetch and store M2 Money Supply data
+        try:
+            from src.economic_data import EconomicDataCollector
+            econ_collector = EconomicDataCollector()
+            
+            console.print("\n[bold]Fetching M2 Money Supply data...[/bold]")
+            m2_data = econ_collector.fetch_m2_data()
+            
+            if not m2_data.empty:
+                db.store_economic_indicator('M2', m2_data)
+                
+                # Show M2 growth rate
+                m2_stats = econ_collector.calculate_m2_growth_rate(m2_data)
+                if m2_stats['yoy_growth']:
+                    console.print(f"[green]✓[/green] M2 YoY Growth: {m2_stats['yoy_growth']:+.1f}%")
+            else:
+                console.print("[yellow]⚠[/yellow] M2 data not available (FRED API key may be missing)")
+        except Exception as e:
+            console.print(f"[yellow]⚠[/yellow] Could not fetch M2 data: {str(e)}")
+        
         # Store initialization timestamp
         db.set_metadata('db_initialized', datetime.now().isoformat())
-        db.set_metadata('db_version', '1.0')
+        db.set_metadata('db_version', '1.1')  # Updated version for M2 support
         
         console.print("\n[bold green]✓ Database initialization complete![/bold green]")
         
@@ -122,6 +142,22 @@ def update_market_data():
                 db.set_metadata(f'last_update_{index_name.lower()}', new_last_date)
                 updated = True
         
+        # Update M2 data
+        try:
+            from src.economic_data import EconomicDataCollector
+            econ_collector = EconomicDataCollector()
+            
+            # Get last M2 date
+            m2_df = db.get_economic_indicator('M2')
+            if not m2_df.empty:
+                last_m2_date = m2_df.index[-1].strftime('%Y-%m-%d')
+                new_m2 = econ_collector.update_m2_data(last_m2_date)
+                if new_m2 is not None and not new_m2.empty:
+                    db.store_economic_indicator('M2', new_m2)
+                    updated = True
+        except Exception as e:
+            console.print(f"[dim]M2 update skipped: {str(e)}[/dim]")
+        
         if updated:
             # Recalculate currency-adjusted returns if we have new data
             sp500_data = db.get_historical_prices('SP500')
@@ -160,6 +196,15 @@ def print_database_stats(stats: dict):
     console.print(f"\n[dim]Database size: {stats.get('db_size_mb', 0):.2f} MB[/dim]")
     console.print(f"[dim]News articles: {stats.get('news_articles', 0)}[/dim]")
     console.print(f"[dim]Recommendations: {stats.get('recommendations', 0)}[/dim]")
+    
+    # Show M2 Money Supply info if available
+    if 'm2_records' in stats and stats['m2_records'] > 0:
+        console.print(f"\n[bold cyan]💵 M2 Money Supply[/bold cyan]")
+        console.print(f"[dim]Records: {stats['m2_records']}[/dim]")
+        if stats.get('m2_yoy_growth') is not None:
+            growth = stats['m2_yoy_growth']
+            color = "green" if growth > 2 else "yellow" if growth > -2 else "red"
+            console.print(f"Latest YoY Growth: [{color}]{growth:+.1f}%[/{color}]")
 
 
 @click.command()
