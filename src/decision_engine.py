@@ -262,6 +262,11 @@ class DecisionEngine:
                 reasons.append(
                     f"Currency tailwind: Dollar strengthening {abs(factors.currency_change_pct):.1f}%"
                 )
+        elif index_name == 'STOXX600':
+            # BONUS: No currency risk for EUR investors!
+            score += 5
+            reasons.append("✅ No currency risk (EUR-denominated)")
+            # Note: For Phase 6B, this will also check Eurozone M2 instead of US M2
         
         # ============================================================
         # FINAL RECOMMENDATION
@@ -293,49 +298,85 @@ class DecisionEngine:
     def compare_recommendations(
         self,
         sp500_result: Dict,
-        cw8_result: Dict
+        cw8_result: Dict,
+        stoxx600_result: Optional[Dict] = None
     ) -> Dict:
         """
-        Compare SP500 and CW8 recommendations to provide overall advice
+        Compare recommendations to provide overall advice
+        Supports 2 or 3 indices
         
         Args:
             sp500_result: SP500 recommendation result
             cw8_result: CW8 recommendation result
+            stoxx600_result: STOXX600 recommendation result (optional)
             
         Returns:
             Dictionary with comparative analysis
         """
-        sp500_rec = sp500_result['recommendation']
-        cw8_rec = cw8_result['recommendation']
-        sp500_score = sp500_result['score']
-        cw8_score = cw8_result['score']
+        # Collect scores
+        scores = {
+            'sp500': sp500_result['score'],
+            'cw8': cw8_result['score']
+        }
         
-        # Determine best option
-        if sp500_score > cw8_score + 15:
-            preference = 'sp500'
-            message = "🇺🇸 S&P 500 shows stronger opportunity"
-        elif cw8_score > sp500_score + 15:
-            preference = 'cw8'
-            message = "🌍 MSCI World (CW8) shows stronger opportunity"
+        if stoxx600_result:
+            scores['stoxx600'] = stoxx600_result['score']
+        
+        # Find best option
+        best_index = max(scores, key=scores.get)
+        best_score = scores[best_index]
+        worst_score = min(scores.values())
+        
+        # Determine preference message
+        if stoxx600_result:
+            # 3-way comparison
+            if best_index == 'stoxx600':
+                message = "🇪🇺 STOXX 600 shows strongest opportunity (+ no currency risk!)"
+            elif best_index == 'sp500':
+                message = "🇺🇸 S&P 500 shows strongest opportunity (watch dollar impact)"
+            else:  # cw8
+                message = "🌍 MSCI World shows strongest opportunity (global diversification)"
+            
+            # Check if scores are close (within 10 points) - suggest diversification
+            if best_score - worst_score < 10:
+                message = "⚖️ All indices show similar opportunities - consider diversifying"
+                preference = 'multiple'
+            else:
+                preference = best_index
         else:
-            preference = 'both'
-            message = "⚖️ Both indices show similar opportunities"
+            # 2-way comparison (original logic)
+            if scores['sp500'] > scores['cw8'] + 15:
+                preference = 'sp500'
+                message = "🇺🇸 S&P 500 shows stronger opportunity"
+            elif scores['cw8'] > scores['sp500'] + 15:
+                preference = 'cw8'
+                message = "🌍 MSCI World (CW8) shows stronger opportunity"
+            else:
+                preference = 'both'
+                message = "⚖️ Both indices show similar opportunities"
         
-        # Overall recommendation
-        if sp500_rec in [Recommendation.STRONG_BUY, Recommendation.BUY] and \
-           cw8_rec in [Recommendation.STRONG_BUY, Recommendation.BUY]:
+        # Overall recommendation logic
+        results = [sp500_result, cw8_result]
+        if stoxx600_result:
+            results.append(stoxx600_result)
+        
+        buy_count = sum(1 for r in results if r['recommendation'] in [Recommendation.STRONG_BUY, Recommendation.BUY])
+        hold_count = sum(1 for r in results if r['recommendation'] == Recommendation.HOLD)
+        
+        if buy_count >= 2:
             overall = "INVEST"
-            action = "Good time to invest in both indices"
-        elif sp500_rec in [Recommendation.STRONG_BUY, Recommendation.BUY] or \
-             cw8_rec in [Recommendation.STRONG_BUY, Recommendation.BUY]:
+            action = f"Good time to invest - {buy_count} of {len(results)} indices show buy signals"
+        elif buy_count >= 1:
             overall = "SELECTIVE"
-            if preference == 'sp500':
+            if stoxx600_result and preference == 'stoxx600':
+                action = "Consider investing in STOXX 600 (European focus, no FX risk)"
+            elif preference == 'sp500':
                 action = "Consider investing in S&P 500"
             elif preference == 'cw8':
                 action = "Consider investing in MSCI World (CW8)"
             else:
-                action = "Consider investing, slight preference for better-scoring index"
-        elif sp500_rec == Recommendation.HOLD or cw8_rec == Recommendation.HOLD:
+                action = "Consider selective investment in better-performing indices"
+        elif hold_count > 0:
             overall = "WAIT"
             action = "Wait for better entry point or more clarity"
         else:
@@ -347,7 +388,9 @@ class DecisionEngine:
             'message': message,
             'overall_recommendation': overall,
             'action': action,
-            'sp500_score': sp500_score,
-            'cw8_score': cw8_score,
-            'score_difference': abs(sp500_score - cw8_score)
+            'sp500_score': scores['sp500'],
+            'cw8_score': scores['cw8'],
+            'stoxx600_score': scores.get('stoxx600'),
+            'score_difference': best_score - worst_score,
+            'scores': scores
         }

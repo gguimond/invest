@@ -132,7 +132,7 @@ def update_market_data():
         collector = DataCollector()
         updated = False
         
-        for index_name in ['SP500', 'CW8', 'EURUSD']:
+        for index_name in ['SP500', 'CW8', 'STOXX600', 'EURUSD']:  # Added STOXX600
             last_date = db.get_last_update_date(index_name)
             
             if not last_date:
@@ -219,8 +219,8 @@ def print_database_stats(stats: dict):
 @click.option('--stats', is_flag=True, help='Show database statistics')
 @click.option('--risk', type=click.Choice(['conservative', 'moderate', 'aggressive']), 
               default=DEFAULT_RISK_TOLERANCE, help='Risk tolerance level')
-@click.option('--index', type=click.Choice(['sp500', 'cw8', 'both']), 
-              default='both', help='Which index to analyze')
+@click.option('--index', type=click.Choice(['sp500', 'cw8', 'stoxx600', 'all']), 
+              default='all', help='Which index to analyze')
 @click.option('--verbose', is_flag=True, help='Show detailed output')
 @click.option('--force-update', is_flag=True, help='Force full data refresh')
 @click.option('--export-db', is_flag=True, help='Export database to CSV files')
@@ -282,11 +282,19 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
         econ_collector = EconomicDataCollector()
         
         # Analyze each index
-        for idx in ['SP500', 'CW8']:
-            if index != 'both' and index.upper() != idx:
+        for idx in ['SP500', 'CW8', 'STOXX600']:  # Added STOXX600
+            if index != 'all' and index.upper() != idx:  # Changed 'both' to 'all'
                 continue
             
-            console.print(f"\n[bold cyan]{'📈' if idx == 'SP500' else '🌍'} {idx} Analysis[/bold cyan]")
+            # Emoji selection
+            if idx == 'SP500':
+                emoji = '📈'
+            elif idx == 'CW8':
+                emoji = '🌍'
+            else:  # STOXX600
+                emoji = '�🇺'
+            
+            console.print(f"\n[bold cyan]{emoji} {idx} Analysis[/bold cyan]")
             console.print("─" * 60)
             
             # Get data
@@ -477,6 +485,8 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
                 related_index = 'SP500'
             elif 'cw8' in category:
                 related_index = 'CW8'
+            elif 'stoxx600' in category:
+                related_index = 'STOXX600'
             elif 'dollar' in category or 'eur' in category:
                 related_index = 'EURUSD'
             else:
@@ -508,11 +518,19 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
         recommendations = {}
         tech_analyses = {}  # Store for later use in reports
         
-        for idx in ['SP500', 'CW8']:
-            if index != 'both' and index.upper() != idx:
+        for idx in ['SP500', 'CW8', 'STOXX600']:  # Added STOXX600
+            if index != 'all' and index.upper() != idx:  # Changed 'both' to 'all'
                 continue
             
-            console.print(f"[bold cyan]{'📈' if idx == 'SP500' else '🌍'} {idx} Investment Recommendation[/bold cyan]")
+            # Emoji selection
+            if idx == 'SP500':
+                emoji = '📈'
+            elif idx == 'CW8':
+                emoji = '🌍'
+            else:  # STOXX600
+                emoji = '�🇺'
+            
+            console.print(f"[bold cyan]{emoji} {idx} Investment Recommendation[/bold cyan]")
             console.print("─" * 60)
             
             # Get technical analysis
@@ -621,19 +639,23 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
             
             console.print()
         
-        # Comparative analysis (if both indices analyzed)
-        if len(recommendations) == 2:
+        # Comparative analysis (support 2 or 3 indices)
+        if len(recommendations) >= 2:
             console.print(f"\n[bold cyan]⚖️ Comparative Analysis[/bold cyan]")
             console.print("=" * 60)
             
+            # Call comparison with all available recommendations
             comparison = decision_engine.compare_recommendations(
-                recommendations['SP500'],
-                recommendations['CW8']
+                recommendations.get('SP500'),
+                recommendations.get('CW8'),
+                recommendations.get('STOXX600')  # Pass None if not analyzed
             )
             
             console.print(f"{comparison['message']}")
             console.print(f"  • S&P 500 Score: {comparison['sp500_score']:+d}")
             console.print(f"  • MSCI World Score: {comparison['cw8_score']:+d}")
+            if comparison.get('stoxx600_score') is not None:
+                console.print(f"  • STOXX 600 Score: {comparison['stoxx600_score']:+d}")
             console.print(f"  • Difference: {comparison['score_difference']} points")
             
             overall_color = 'bold green' if comparison['overall_recommendation'] == 'INVEST' else \

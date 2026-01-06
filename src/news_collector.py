@@ -128,6 +128,7 @@ class NewsCollector:
         news_by_category = {
             'sp500': [],
             'cw8': [],
+            'stoxx600': [],  # NEW: STOXX 600 European news
             'market_general': [],
             'recession': [],
             'ai_bubble': [],
@@ -147,6 +148,10 @@ class NewsCollector:
         # MSCI World / Global markets - INCREASED from 10 to 25
         console.print("• Fetching MSCI World news...")
         news_by_category['cw8'] = self.fetch_google_news("MSCI World index global stocks", max_results=25)
+        
+        # NEW: STOXX 600 European news
+        console.print("• Fetching STOXX 600 European news...")
+        news_by_category['stoxx600'] = self.fetch_google_news("STOXX 600 European stocks Europe equity market", max_results=25)
         
         # General market news - INCREASED from 15 to 30
         console.print("• Fetching general market news...")

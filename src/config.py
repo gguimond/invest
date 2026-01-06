@@ -31,13 +31,27 @@ TICKERS = {
         "ticker": "^GSPC",
         "name": "S&P 500",
         "currency": "USD",
-        "adjust_for_eur": True
+        "region": "US",
+        "adjust_for_eur": True,
+        "needs_currency_adjustment": True
     },
     "CW8": {
         "ticker": "URTH",  # iShares MSCI World ETF (fallback: IWDA.AS)
         "name": "MSCI World (URTH)",
         "currency": "USD",
-        "adjust_for_eur": False
+        "region": "Global",
+        "adjust_for_eur": False,
+        "needs_currency_adjustment": False
+    },
+    "STOXX600": {  # NEW: EuroStoxx 600
+        "ticker": "^STOXX",  # Primary ticker (fallback: EXSA.DE for ETF)
+        "name": "STOXX Europe 600",
+        "currency": "EUR",
+        "region": "Europe",
+        "adjust_for_eur": False,
+        "needs_currency_adjustment": False,
+        "use_eurozone_m2": True,  # Will use Eurozone M2 in Phase 6B
+        "use_eurozone_recession": True  # Will use Eurozone recession data in Phase 6B
     },
     "EURUSD": {
         "ticker": "EURUSD=X",
