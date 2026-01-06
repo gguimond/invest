@@ -196,20 +196,17 @@ invest/
 │   ├── *.txt                  # Text reports
 │   ├── *.json                 # JSON reports
 │   └── *.csv                  # CSV reports
-├── src/
-│   ├── __init__.py
-│   ├── config.py              # Configuration & settings
-│   ├── database.py            # Database operations
-│   ├── data_collector.py      # Market data fetching (yfinance)
-│   ├── economic_data.py       # M2 money supply (FRED API)
-│   ├── technical_analyzer.py  # Technical indicators
-│   ├── news_collector.py      # Google News RSS fetching
-│   ├── sentiment_analyzer.py  # VADER sentiment analysis
-│   ├── decision_engine.py     # Investment recommendations
-│   └── report_generator.py    # Rich tables & exports
-└── docs/
-    ├── PHASE*.md              # Implementation guides
-    └── EUROSTOXX_INTEGRATION_PLAN.md
+└── src/
+    ├── __init__.py
+    ├── config.py              # Configuration & settings
+    ├── database.py            # Database operations
+    ├── data_collector.py      # Market data fetching (yfinance)
+    ├── economic_data.py       # M2 money supply (FRED API)
+    ├── technical_analyzer.py  # Technical indicators
+    ├── news_collector.py      # Google News RSS fetching
+    ├── sentiment_analyzer.py  # VADER sentiment analysis
+    ├── decision_engine.py     # Investment recommendations
+    └── report_generator.py    # Rich tables & exports
 ```
 
 ## 🔧 Configuration
@@ -390,9 +387,8 @@ This is a personal project. Feel free to fork and adapt for your own use.
 
 For issues or questions, please check:
 1. This README
-2. Implementation guides: `PHASE*.md` files
-3. Integration plan: `EUROSTOXX_INTEGRATION_PLAN.md`
-4. Code comments and docstrings
+2. Code comments and docstrings in source files
+3. Configuration examples in `.env.example`
 
 ## 🗺️ Roadmap
 
