@@ -26,7 +26,8 @@ class ReportGenerator:
         sp500_data: Dict,
         cw8_data: Dict,
         currency_data: Dict,
-        m2_data: Dict
+        m2_data: Dict,
+        stoxx600_data: Optional[Dict] = None
     ) -> Table:
         """Create a summary table of all key metrics"""
         table = Table(title="📊 Market Summary", show_header=True, header_style="bold cyan")
@@ -34,83 +35,184 @@ class ReportGenerator:
         table.add_column("Metric", style="cyan", width=25)
         table.add_column("S&P 500", style="white", width=20)
         table.add_column("MSCI World", style="white", width=20)
+        if stoxx600_data:
+            table.add_column("STOXX 600", style="white", width=20)
         
         # Current prices
-        table.add_row(
-            "Current Price",
-            f"${sp500_data['current_price']:.2f}",
-            f"€{cw8_data['current_price']:.2f}"
-        )
+        if stoxx600_data:
+            table.add_row(
+                "Current Price",
+                f"${sp500_data['current_price']:.2f}",
+                f"€{cw8_data['current_price']:.2f}",
+                f"€{stoxx600_data['current_price']:.2f}"
+            )
+        else:
+            table.add_row(
+                "Current Price",
+                f"${sp500_data['current_price']:.2f}",
+                f"€{cw8_data['current_price']:.2f}"
+            )
         
         # Dip from high
         sp500_color = "green" if sp500_data['dip_pct'] < -5 else "yellow" if sp500_data['dip_pct'] < -3 else "white"
         cw8_color = "green" if cw8_data['dip_pct'] < -5 else "yellow" if cw8_data['dip_pct'] < -3 else "white"
         
-        table.add_row(
-            "Dip from High",
-            f"[{sp500_color}]{sp500_data['dip_pct']:.1f}%[/{sp500_color}]",
-            f"[{cw8_color}]{cw8_data['dip_pct']:.1f}%[/{cw8_color}]"
-        )
+        if stoxx600_data:
+            stoxx_color = "green" if stoxx600_data['dip_pct'] < -5 else "yellow" if stoxx600_data['dip_pct'] < -3 else "white"
+            table.add_row(
+                "Dip from High",
+                f"[{sp500_color}]{sp500_data['dip_pct']:.1f}%[/{sp500_color}]",
+                f"[{cw8_color}]{cw8_data['dip_pct']:.1f}%[/{cw8_color}]",
+                f"[{stoxx_color}]{stoxx600_data['dip_pct']:.1f}%[/{stoxx_color}]"
+            )
+        else:
+            table.add_row(
+                "Dip from High",
+                f"[{sp500_color}]{sp500_data['dip_pct']:.1f}%[/{sp500_color}]",
+                f"[{cw8_color}]{cw8_data['dip_pct']:.1f}%[/{cw8_color}]"
+            )
         
         # RSI
         sp500_rsi_color = "green" if sp500_data['rsi'] < 40 else "red" if sp500_data['rsi'] > 60 else "white"
         cw8_rsi_color = "green" if cw8_data['rsi'] < 40 else "red" if cw8_data['rsi'] > 60 else "white"
         
-        table.add_row(
-            "RSI (14)",
-            f"[{sp500_rsi_color}]{sp500_data['rsi']:.1f}[/{sp500_rsi_color}]",
-            f"[{cw8_rsi_color}]{cw8_data['rsi']:.1f}[/{cw8_rsi_color}]"
-        )
+        if stoxx600_data:
+            stoxx_rsi_color = "green" if stoxx600_data['rsi'] < 40 else "red" if stoxx600_data['rsi'] > 60 else "white"
+            table.add_row(
+                "RSI (14)",
+                f"[{sp500_rsi_color}]{sp500_data['rsi']:.1f}[/{sp500_rsi_color}]",
+                f"[{cw8_rsi_color}]{cw8_data['rsi']:.1f}[/{cw8_rsi_color}]",
+                f"[{stoxx_rsi_color}]{stoxx600_data['rsi']:.1f}[/{stoxx_rsi_color}]"
+            )
+        else:
+            table.add_row(
+                "RSI (14)",
+                f"[{sp500_rsi_color}]{sp500_data['rsi']:.1f}[/{sp500_rsi_color}]",
+                f"[{cw8_rsi_color}]{cw8_data['rsi']:.1f}[/{cw8_rsi_color}]"
+            )
         
         # Trend
-        table.add_row(
-            "Trend",
-            sp500_data['trend'].replace('_', ' ').title(),
-            cw8_data['trend'].replace('_', ' ').title()
-        )
+        if stoxx600_data:
+            table.add_row(
+                "Trend",
+                sp500_data['trend'].replace('_', ' ').title(),
+                cw8_data['trend'].replace('_', ' ').title(),
+                stoxx600_data['trend'].replace('_', ' ').title()
+            )
+        else:
+            table.add_row(
+                "Trend",
+                sp500_data['trend'].replace('_', ' ').title(),
+                cw8_data['trend'].replace('_', ' ').title()
+            )
         
         # Sentiment
         sp500_sent_color = "green" if sp500_data['sentiment'] > 0.05 else "red" if sp500_data['sentiment'] < -0.05 else "white"
         cw8_sent_color = "green" if cw8_data['sentiment'] > 0.05 else "red" if cw8_data['sentiment'] < -0.05 else "white"
         
-        table.add_row(
-            "Sentiment",
-            f"[{sp500_sent_color}]{sp500_data['sentiment']:+.3f}[/{sp500_sent_color}]",
-            f"[{cw8_sent_color}]{cw8_data['sentiment']:+.3f}[/{cw8_sent_color}]"
-        )
+        if stoxx600_data:
+            stoxx_sent_color = "green" if stoxx600_data['sentiment'] > 0.05 else "red" if stoxx600_data['sentiment'] < -0.05 else "white"
+            table.add_row(
+                "Sentiment",
+                f"[{sp500_sent_color}]{sp500_data['sentiment']:+.3f}[/{sp500_sent_color}]",
+                f"[{cw8_sent_color}]{cw8_data['sentiment']:+.3f}[/{cw8_sent_color}]",
+                f"[{stoxx_sent_color}]{stoxx600_data['sentiment']:+.3f}[/{stoxx_sent_color}]"
+            )
+        else:
+            table.add_row(
+                "Sentiment",
+                f"[{sp500_sent_color}]{sp500_data['sentiment']:+.3f}[/{sp500_sent_color}]",
+                f"[{cw8_sent_color}]{cw8_data['sentiment']:+.3f}[/{cw8_sent_color}]"
+            )
         
         # Add separator
         table.add_section()
         
         # Currency info
-        table.add_row(
-            "💱 EUR/USD Rate",
-            f"{currency_data['current_rate']:.4f}",
-            "N/A (EUR-based)"
-        )
-        
-        table.add_row(
-            "Currency Impact",
-            f"{currency_data['impact']} ({currency_data['change_pct']:+.1f}%)",
-            "No impact"
-        )
+        if stoxx600_data:
+            table.add_row(
+                "💱 EUR/USD Rate",
+                f"{currency_data['current_rate']:.4f}",
+                "N/A (EUR-based)",
+                "N/A (EUR-based)"
+            )
+            
+            table.add_row(
+                "Currency Impact",
+                f"{currency_data['impact']} ({currency_data['change_pct']:+.1f}%)",
+                "No impact",
+                "✅ None (EUR)"
+            )
+        else:
+            table.add_row(
+                "💱 EUR/USD Rate",
+                f"{currency_data['current_rate']:.4f}",
+                "N/A (EUR-based)"
+            )
+            
+            table.add_row(
+                "Currency Impact",
+                f"{currency_data['impact']} ({currency_data['change_pct']:+.1f}%)",
+                "No impact"
+            )
         
         # Add separator
         table.add_section()
         
-        # M2 Money Supply
-        if m2_data and m2_data.get('yoy_growth') is not None:
-            m2_color = "green" if m2_data['yoy_growth'] > 2 else "red" if m2_data['yoy_growth'] < -2 else "yellow"
-            table.add_row(
-                "💵 M2 Growth (YoY)",
-                f"[{m2_color}]{m2_data['yoy_growth']:+.1f}%[/{m2_color}]",
-                f"[{m2_color}]{m2_data['yoy_growth']:+.1f}%[/{m2_color}]"
-            )
-            table.add_row(
-                "M2 Impact",
-                m2_data['favorability'],
-                m2_data['favorability']
-            )
+        # M2 Money Supply - show both US and Eurozone if available
+        if m2_data:
+            # US M2 (for SP500 and CW8)
+            if m2_data.get('us_yoy_growth') is not None:
+                m2_us_color = "green" if m2_data['us_yoy_growth'] > 2 else "red" if m2_data['us_yoy_growth'] < -2 else "yellow"
+                
+                if stoxx600_data and m2_data.get('eurozone_yoy_growth') is not None:
+                    # Show both US and Eurozone M2
+                    m2_ez_color = "green" if m2_data['eurozone_yoy_growth'] > 2 else "red" if m2_data['eurozone_yoy_growth'] < -2 else "yellow"
+                    table.add_row(
+                        "💵 M2 Growth (YoY)",
+                        f"[{m2_us_color}]{m2_data['us_yoy_growth']:+.1f}% (US)[/{m2_us_color}]",
+                        f"[{m2_us_color}]{m2_data['us_yoy_growth']:+.1f}% (US)[/{m2_us_color}]",
+                        f"[{m2_ez_color}]{m2_data['eurozone_yoy_growth']:+.1f}% (EUR)[/{m2_ez_color}]"
+                    )
+                    table.add_row(
+                        "M2 Impact",
+                        m2_data.get('us_favorability', 'unknown'),
+                        m2_data.get('us_favorability', 'unknown'),
+                        m2_data.get('eurozone_favorability', 'unknown')
+                    )
+                else:
+                    # Only US M2
+                    table.add_row(
+                        "💵 M2 Growth (YoY)",
+                        f"[{m2_us_color}]{m2_data['us_yoy_growth']:+.1f}%[/{m2_us_color}]",
+                        f"[{m2_us_color}]{m2_data['us_yoy_growth']:+.1f}%[/{m2_us_color}]"
+                    )
+                    table.add_row(
+                        "M2 Impact",
+                        m2_data.get('us_favorability', 'unknown'),
+                        m2_data.get('us_favorability', 'unknown')
+                    )
+            elif m2_data.get('yoy_growth') is not None:
+                # Backward compatibility
+                m2_color = "green" if m2_data['yoy_growth'] > 2 else "red" if m2_data['yoy_growth'] < -2 else "yellow"
+                if stoxx600_data:
+                    table.add_row(
+                        "💵 M2 Growth (YoY)",
+                        f"[{m2_color}]{m2_data['yoy_growth']:+.1f}%[/{m2_color}]",
+                        f"[{m2_color}]{m2_data['yoy_growth']:+.1f}%[/{m2_color}]",
+                        f"[{m2_color}]{m2_data['yoy_growth']:+.1f}%[/{m2_color}]"
+                    )
+                else:
+                    table.add_row(
+                        "💵 M2 Growth (YoY)",
+                        f"[{m2_color}]{m2_data['yoy_growth']:+.1f}%[/{m2_color}]",
+                        f"[{m2_color}]{m2_data['yoy_growth']:+.1f}%[/{m2_color}]"
+                    )
+                table.add_row(
+                    "M2 Impact",
+                    m2_data.get('favorability', 'unknown'),
+                    m2_data.get('favorability', 'unknown')
+                )
         
         return table
     
@@ -118,7 +220,8 @@ class ReportGenerator:
         self,
         sp500_rec: Dict,
         cw8_rec: Dict,
-        comparison: Dict
+        comparison: Dict,
+        stoxx600_rec: Optional[Dict] = None
     ) -> Table:
         """Create a table showing recommendations"""
         table = Table(title="🎯 Investment Recommendations", show_header=True, header_style="bold cyan")
@@ -129,14 +232,17 @@ class ReportGenerator:
         table.add_column("Score", width=10)
         table.add_column("Key Factors", width=40)
         
+        # Determine best index from comparison
+        best_index = comparison.get('best_index', 'sp500').lower()
+        
         # SP500
         sp500_emoji = self._get_recommendation_emoji(sp500_rec['recommendation'].value)
         sp500_color = self._get_recommendation_color(sp500_rec['recommendation'].value)
-        
         sp500_factors = " • ".join(sp500_rec['reasons'][:2]) if sp500_rec['reasons'] else "See details"
+        sp500_label = "📈 S&P 500" + (" ⭐" if best_index == 'sp500' else "")
         
         table.add_row(
-            "📈 S&P 500",
+            sp500_label,
             f"[{sp500_color}]{sp500_emoji} {sp500_rec['recommendation'].value}[/{sp500_color}]",
             f"{sp500_rec['confidence']:.0%}",
             f"{sp500_rec['score']:+d}",
@@ -146,27 +252,43 @@ class ReportGenerator:
         # CW8
         cw8_emoji = self._get_recommendation_emoji(cw8_rec['recommendation'].value)
         cw8_color = self._get_recommendation_color(cw8_rec['recommendation'].value)
-        
         cw8_factors = " • ".join(cw8_rec['reasons'][:2]) if cw8_rec['reasons'] else "See details"
+        cw8_label = "🌍 MSCI World" + (" ⭐" if best_index == 'cw8' else "")
         
         table.add_row(
-            "🌍 MSCI World",
+            cw8_label,
             f"[{cw8_color}]{cw8_emoji} {cw8_rec['recommendation'].value}[/{cw8_color}]",
             f"{cw8_rec['confidence']:.0%}",
             f"{cw8_rec['score']:+d}",
             cw8_factors[:40] + "..." if len(cw8_factors) > 40 else cw8_factors
         )
         
+        # STOXX600 (if available)
+        if stoxx600_rec:
+            stoxx_emoji = self._get_recommendation_emoji(stoxx600_rec['recommendation'].value)
+            stoxx_color = self._get_recommendation_color(stoxx600_rec['recommendation'].value)
+            stoxx_factors = " • ".join(stoxx600_rec['reasons'][:2]) if stoxx600_rec['reasons'] else "See details"
+            stoxx_label = "🇪🇺 STOXX 600" + (" ⭐" if best_index == 'stoxx600' else "")
+            
+            table.add_row(
+                stoxx_label,
+                f"[{stoxx_color}]{stoxx_emoji} {stoxx600_rec['recommendation'].value}[/{stoxx_color}]",
+                f"{stoxx600_rec['confidence']:.0%}",
+                f"{stoxx600_rec['score']:+d}",
+                stoxx_factors[:40] + "..." if len(stoxx_factors) > 40 else stoxx_factors
+            )
+        
         # Add separator
         table.add_section()
         
         # Overall recommendation
         overall_color = self._get_overall_color(comparison['overall_recommendation'])
+        score_diff_label = f"Δ {comparison.get('score_difference', 0)}" if not stoxx600_rec else ""
         table.add_row(
             "📊 OVERALL",
             f"[{overall_color}]{comparison['overall_recommendation']}[/{overall_color}]",
             "",
-            f"Δ {comparison['score_difference']}",
+            score_diff_label,
             comparison['action'][:40] + "..." if len(comparison['action']) > 40 else comparison['action']
         )
         
@@ -272,12 +394,24 @@ class ReportGenerator:
             f.write(f"({report_data['sp500']['dip_pct']:+.1f}% from high)\n")
             f.write(f"MSCI World:   €{report_data['cw8']['current_price']:.2f} ")
             f.write(f"({report_data['cw8']['dip_pct']:+.1f}% from high)\n")
+            
+            if report_data.get('stoxx600'):
+                f.write(f"STOXX 600:    €{report_data['stoxx600']['current_price']:.2f} ")
+                f.write(f"({report_data['stoxx600']['dip_pct']:+.1f}% from high)\n")
+            
             f.write(f"EUR/USD:      {report_data['currency']['current_rate']:.4f} ")
             f.write(f"({report_data['currency']['change_pct']:+.1f}%)\n")
             
-            if report_data.get('m2') and report_data['m2'].get('yoy_growth') is not None:
-                f.write(f"M2 Growth:    {report_data['m2']['yoy_growth']:+.1f}% YoY ")
-                f.write(f"({report_data['m2']['favorability']})\n")
+            if report_data.get('m2'):
+                if report_data['m2'].get('us_yoy_growth') is not None:
+                    f.write(f"US M2 Growth:     {report_data['m2']['us_yoy_growth']:+.1f}% YoY ")
+                    f.write(f"({report_data['m2'].get('us_favorability', 'unknown')})\n")
+                if report_data['m2'].get('eurozone_yoy_growth') is not None:
+                    f.write(f"Eurozone M2 Growth: {report_data['m2']['eurozone_yoy_growth']:+.1f}% YoY ")
+                    f.write(f"({report_data['m2'].get('eurozone_favorability', 'unknown')})\n")
+                elif report_data['m2'].get('yoy_growth') is not None:
+                    f.write(f"M2 Growth:    {report_data['m2']['yoy_growth']:+.1f}% YoY ")
+                    f.write(f"({report_data['m2'].get('favorability', 'unknown')})\n")
             
             f.write("\n")
             
@@ -285,7 +419,11 @@ class ReportGenerator:
             f.write("RECOMMENDATIONS\n")
             f.write("-" * 80 + "\n")
             
-            for idx_name, idx_key in [('S&P 500', 'sp500'), ('MSCI World', 'cw8')]:
+            indices = [('S&P 500', 'sp500'), ('MSCI World', 'cw8')]
+            if report_data.get('stoxx600'):
+                indices.append(('STOXX 600', 'stoxx600'))
+            
+            for idx_name, idx_key in indices:
                 rec = report_data['recommendations'][idx_key]
                 f.write(f"\n{idx_name}:\n")
                 f.write(f"  Recommendation: {rec['recommendation']}\n")
@@ -372,7 +510,11 @@ class ReportGenerator:
             # Market data
             writer.writerow(['Index', 'Price', 'Dip %', 'RSI', 'Trend', 'Sentiment', 'Recommendation', 'Confidence', 'Score'])
             
-            for idx_name, idx_key in [('S&P 500', 'sp500'), ('MSCI World', 'cw8')]:
+            indices = [('S&P 500', 'sp500'), ('MSCI World', 'cw8')]
+            if report_data.get('stoxx600'):
+                indices.append(('STOXX 600', 'stoxx600'))
+            
+            for idx_name, idx_key in indices:
                 idx_data = report_data[idx_key]
                 rec = report_data['recommendations'][idx_key]
                 
@@ -398,10 +540,17 @@ class ReportGenerator:
             writer.writerow([])
             
             # M2
-            if report_data.get('m2') and report_data['m2'].get('yoy_growth') is not None:
+            if report_data.get('m2'):
                 writer.writerow(['M2 Money Supply'])
-                writer.writerow(['YoY Growth %', report_data['m2']['yoy_growth']])
-                writer.writerow(['Favorability', report_data['m2']['favorability']])
+                if report_data['m2'].get('us_yoy_growth') is not None:
+                    writer.writerow(['US M2 YoY Growth %', report_data['m2']['us_yoy_growth']])
+                    writer.writerow(['US M2 Favorability', report_data['m2'].get('us_favorability', 'unknown')])
+                if report_data['m2'].get('eurozone_yoy_growth') is not None:
+                    writer.writerow(['Eurozone M2 YoY Growth %', report_data['m2']['eurozone_yoy_growth']])
+                    writer.writerow(['Eurozone M2 Favorability', report_data['m2'].get('eurozone_favorability', 'unknown')])
+                elif report_data['m2'].get('yoy_growth') is not None:
+                    writer.writerow(['YoY Growth %', report_data['m2']['yoy_growth']])
+                    writer.writerow(['Favorability', report_data['m2'].get('favorability', 'unknown')])
                 writer.writerow([])
             
             # Risks

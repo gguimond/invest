@@ -827,7 +827,30 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
             }
         }
         
-        # Store references for summary tables
+        # Get STOXX600 analysis if available (needed for both report_data and summary tables)
+        stoxx600_df = db.get_historical_prices('STOXX600')
+        tech_analysis_stoxx600 = analyzer.calculate_comprehensive_analysis(stoxx600_df) if not stoxx600_df.empty else None
+        stoxx600_sentiment = sentiment_results.get('stoxx600', {}).get('aggregate', overall_sentiment) if tech_analysis_stoxx600 else None
+        
+        # Add STOXX600 data to report if available
+        if tech_analysis_stoxx600 and stoxx600_sentiment:
+            report_data['stoxx600'] = {
+                'current_price': tech_analysis_stoxx600.get('dip', {}).get('current_price', 0),
+                'dip_pct': tech_analysis_stoxx600.get('dip', {}).get('dip_percentage', 0),
+                'rsi': tech_analysis_stoxx600.get('momentum', {}).get('rsi', 0),
+                'trend': tech_analysis_stoxx600.get('trend', {}).get('trend', 'unknown'),
+                'sentiment': stoxx600_sentiment.get('sentiment_score', 0)
+            }
+            if recommendations.get('STOXX600'):
+                report_data['recommendations']['stoxx600'] = {
+                    'recommendation': recommendations.get('STOXX600', {}).get('recommendation', 'HOLD').value if hasattr(recommendations.get('STOXX600', {}).get('recommendation'), 'value') else 'HOLD',
+                    'confidence': recommendations.get('STOXX600', {}).get('confidence', 0),
+                    'score': recommendations.get('STOXX600', {}).get('score', 0),
+                    'reasons': recommendations.get('STOXX600', {}).get('reasons', []),
+                    'risk_factors': recommendations.get('STOXX600', {}).get('risk_factors', [])
+                }
+        
+        # Store references for summary tables (recalculate SP500 and CW8 for fresh data)
         tech_analysis_sp500 = analyzer.calculate_comprehensive_analysis(db.get_historical_prices('SP500'))
         tech_analysis_cw8 = analyzer.calculate_comprehensive_analysis(db.get_historical_prices('CW8'))
         sp500_sentiment = sentiment_results.get('sp500', {}).get('aggregate', overall_sentiment)
@@ -868,17 +891,25 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
                     # Backward compatibility
                     'yoy_growth': m2_us_stats.get('yoy_growth') if not m2_us_df.empty else None,
                     'favorability': m2_us_assessment.get('impact', 'unknown') if not m2_us_df.empty else 'unknown'
-                }
+                },
+                stoxx600_data={
+                    'current_price': tech_analysis_stoxx600['dip']['current_price'],
+                    'dip_pct': tech_analysis_stoxx600['dip']['dip_percentage'],
+                    'rsi': tech_analysis_stoxx600['momentum']['rsi'],
+                    'trend': tech_analysis_stoxx600['trend']['trend'],
+                    'sentiment': stoxx600_sentiment.get('sentiment_score', 0)
+                } if tech_analysis_stoxx600 and stoxx600_sentiment else None
             )
             console.print(summary_table)
             console.print()
             
             # Recommendation Table
-            if len(recommendations) == 2:
+            if len(recommendations) >= 2:
                 rec_table = report_generator.create_recommendation_table(
                     recommendations['SP500'],
                     recommendations['CW8'],
-                    comparison
+                    comparison,
+                    recommendations.get('STOXX600')  # Add STOXX600 if available
                 )
                 console.print(rec_table)
                 console.print()
