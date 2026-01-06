@@ -266,7 +266,7 @@ class DecisionEngine:
             # BONUS: No currency risk for EUR investors!
             score += 5
             reasons.append("✅ No currency risk (EUR-denominated)")
-            # Note: For Phase 6B, this will also check Eurozone M2 instead of US M2
+            # Phase 6B: STOXX600 uses Eurozone M2 data (not US M2)
         
         # ============================================================
         # FINAL RECOMMENDATION

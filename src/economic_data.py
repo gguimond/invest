@@ -23,12 +23,13 @@ class EconomicDataCollector:
             console.print("[yellow]⚠[/yellow] FRED API key not configured.")
             console.print("[dim]Get a free API key at: https://fred.stlouisfed.org/docs/api/api_key.html[/dim]")
     
-    def fetch_m2_data(self, years: int = HISTORICAL_YEARS) -> pd.DataFrame:
+    def fetch_m2_data(self, years: int = HISTORICAL_YEARS, region: str = "US") -> pd.DataFrame:
         """
         Fetch M2 Money Supply data from FRED
         
         Args:
             years: Number of years of historical data
+            region: 'US' or 'EUROZONE'
         
         Returns:
             DataFrame with date index and value column
@@ -37,7 +38,13 @@ class EconomicDataCollector:
             console.print("[red]✗[/red] Cannot fetch M2 data: FRED API key not configured")
             return pd.DataFrame()
         
-        series_id = self.indicators['M2']['fred_series']
+        # Select appropriate series
+        if region == "EUROZONE":
+            series_id = self.indicators['M2_EUROZONE']['fred_series']
+            console.print(f"[dim]Fetching Eurozone M2 Money Supply data from FRED...[/dim]")
+        else:
+            series_id = self.indicators['M2']['fred_series']
+            console.print(f"[dim]Fetching US M2 Money Supply data from FRED...[/dim]")
         
         # Calculate date range
         end_date = datetime.now()
@@ -52,14 +59,13 @@ class EconomicDataCollector:
         }
         
         try:
-            console.print(f"[dim]Fetching M2 Money Supply data from FRED...[/dim]")
             response = requests.get(self.base_url, params=params, timeout=30)
             response.raise_for_status()
             
             data = response.json()
             
             if 'observations' not in data:
-                console.print("[red]✗[/red] No M2 data returned from FRED")
+                console.print(f"[red]✗[/red] No {region} M2 data returned from FRED")
                 return pd.DataFrame()
             
             observations = data['observations']
@@ -75,23 +81,24 @@ class EconomicDataCollector:
             # Set date as index
             df = df.set_index('date')[['value']]
             
-            console.print(f"[green]✓[/green] Fetched {len(df)} M2 observations")
+            console.print(f"[green]✓[/green] Fetched {len(df)} {region} M2 observations")
             
             return df
             
         except requests.exceptions.RequestException as e:
-            console.print(f"[red]✗[/red] Error fetching M2 data: {str(e)}")
+            console.print(f"[red]✗[/red] Error fetching {region} M2 data: {str(e)}")
             return pd.DataFrame()
         except Exception as e:
             console.print(f"[red]✗[/red] Unexpected error: {str(e)}")
             return pd.DataFrame()
     
-    def update_m2_data(self, last_date: str) -> Optional[pd.DataFrame]:
+    def update_m2_data(self, last_date: str, region: str = "US") -> Optional[pd.DataFrame]:
         """
         Fetch M2 data since last update
         
         Args:
             last_date: Last date in database (YYYY-MM-DD)
+            region: 'US' or 'EUROZONE'
         
         Returns:
             DataFrame with new data or None
@@ -99,7 +106,11 @@ class EconomicDataCollector:
         if not self.api_key:
             return None
         
-        series_id = self.indicators['M2']['fred_series']
+        # Select appropriate series
+        if region == "EUROZONE":
+            series_id = self.indicators['M2_EUROZONE']['fred_series']
+        else:
+            series_id = self.indicators['M2']['fred_series']
         
         try:
             last_dt = datetime.strptime(last_date, '%Y-%m-%d')
@@ -107,7 +118,7 @@ class EconomicDataCollector:
             end_date = datetime.now()
             
             if start_date.date() >= end_date.date():
-                console.print("[blue]ℹ[/blue] M2 data already up to date")
+                console.print(f"[blue]ℹ[/blue] {region} M2 data already up to date")
                 return None
             
             params = {
@@ -124,7 +135,7 @@ class EconomicDataCollector:
             data = response.json()
             
             if 'observations' not in data or len(data['observations']) == 0:
-                console.print("[blue]ℹ[/blue] No new M2 data available")
+                console.print(f"[blue]ℹ[/blue] No new {region} M2 data available")
                 return None
             
             observations = data['observations']
@@ -135,12 +146,12 @@ class EconomicDataCollector:
             df = df.set_index('date')[['value']]
             
             if not df.empty:
-                console.print(f"[green]✓[/green] M2 updated to {df.index[-1].strftime('%Y-%m-%d')}")
+                console.print(f"[green]✓[/green] {region} M2 updated to {df.index[-1].strftime('%Y-%m-%d')}")
             
             return df if not df.empty else None
             
         except Exception as e:
-            console.print(f"[red]✗[/red] Error updating M2 data: {str(e)}")
+            console.print(f"[red]✗[/red] Error updating {region} M2 data: {str(e)}")
             return None
     
     def calculate_m2_growth_rate(self, m2_data: pd.DataFrame, 

@@ -66,13 +66,23 @@ ECONOMIC_INDICATORS = {
         "fred_series": "M2SL",  # M2 Money Stock (seasonally adjusted)
         "name": "M2 Money Supply",
         "unit": "Billions of Dollars",
-        "frequency": "monthly"
+        "frequency": "monthly",
+        "region": "US"
     },
     "M2_REAL": {
         "fred_series": "M2REAL",  # Real M2 Money Stock
         "name": "Real M2 Money Supply",
         "unit": "Billions of 1982 Dollars",
-        "frequency": "monthly"
+        "frequency": "monthly",
+        "region": "US"
+    },
+    "M2_EUROZONE": {
+        "fred_series": "MABMM301EZM189S",  # Euro Area M3 excluding currency in circulation
+        "name": "Eurozone M3 Money Supply",
+        "unit": "Millions of Euros", 
+        "frequency": "monthly",
+        "region": "EUROZONE",
+        "note": "ECB's M3 monetary aggregate (broader than M2 but includes all M2 components)"
     }
 }
 

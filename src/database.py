@@ -299,19 +299,25 @@ class Database:
         # Database file size
         stats['db_size_mb'] = Path(self.db_path).stat().st_size / (1024 * 1024)
         
-        # M2 Money Supply stats
-        cursor.execute("""
-            SELECT COUNT(*) as count, MIN(date) as first_date, MAX(date) as last_date
-            FROM economic_indicators
-            WHERE indicator_name = 'M2'
-        """)
-        m2_result = cursor.fetchone()
-        stats['m2_records'] = m2_result['count'] if m2_result else 0
-        stats['m2_first_date'] = m2_result['first_date'] if m2_result else None
-        stats['m2_last_date'] = m2_result['last_date'] if m2_result else None
+        # M2 Money Supply stats (US and Eurozone)
+        for m2_region in ['M2_US', 'M2_EUROZONE']:
+            cursor.execute("""
+                SELECT COUNT(*) as count, MIN(date) as first_date, MAX(date) as last_date
+                FROM economic_indicators
+                WHERE indicator_name = ?
+            """, (m2_region,))
+            m2_result = cursor.fetchone()
+            stats[f'{m2_region.lower()}_records'] = m2_result['count'] if m2_result else 0
+            stats[f'{m2_region.lower()}_first_date'] = m2_result['first_date'] if m2_result else None
+            stats[f'{m2_region.lower()}_last_date'] = m2_result['last_date'] if m2_result else None
         
-        # Latest M2 YoY growth
-        stats['m2_yoy_growth'] = self.get_latest_m2_growth()
+        # Latest M2 YoY growth for both regions
+        stats['m2_us_yoy_growth'] = self.get_latest_m2_growth('M2_US')
+        stats['m2_eurozone_yoy_growth'] = self.get_latest_m2_growth('M2_EUROZONE')
+        
+        # Backward compatibility
+        stats['m2_records'] = stats['m2_us_records']
+        stats['m2_yoy_growth'] = stats['m2_us_yoy_growth']
         
         return stats
     
@@ -457,16 +463,16 @@ class Database:
         
         return df
     
-    def get_latest_m2_growth(self) -> Optional[float]:
+    def get_latest_m2_growth(self, indicator_name: str = 'M2_US') -> Optional[float]:
         """Get the most recent M2 year-over-year growth rate"""
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT yoy_change
             FROM economic_indicators
-            WHERE indicator_name = 'M2' AND yoy_change IS NOT NULL
+            WHERE indicator_name = ? AND yoy_change IS NOT NULL
             ORDER BY date DESC
             LIMIT 1
-        """)
+        """, (indicator_name,))
         result = cursor.fetchone()
         return result['yoy_change'] if result else None
     
@@ -483,16 +489,16 @@ class Database:
         result = cursor.fetchone()
         return result['yoy_change'] if result else None
     
-    def get_latest_m2_level(self) -> Optional[float]:
+    def get_latest_m2_level(self, indicator_name: str = 'M2_US') -> Optional[float]:
         """Get the most recent M2 money supply level"""
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT value
             FROM economic_indicators
-            WHERE indicator_name = 'M2'
+            WHERE indicator_name = ?
             ORDER BY date DESC
             LIMIT 1
-        """)
+        """, (indicator_name,))
         result = cursor.fetchone()
         return result['value'] if result else None
     

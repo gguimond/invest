@@ -92,16 +92,24 @@ def initialize_database(force: bool = False):
             econ_collector = EconomicDataCollector()
             
             console.print("\n[bold]Fetching M2 Money Supply data...[/bold]")
-            m2_data = econ_collector.fetch_m2_data()
             
-            if not m2_data.empty:
-                db.store_economic_indicator('M2', m2_data)
-                
-                # Show M2 growth rate
-                m2_stats = econ_collector.calculate_m2_growth_rate(m2_data)
-                if m2_stats['yoy_growth']:
-                    console.print(f"[green]✓[/green] M2 YoY Growth: {m2_stats['yoy_growth']:+.1f}%")
-            else:
+            # Fetch US M2
+            m2_data_us = econ_collector.fetch_m2_data(region="US")
+            if not m2_data_us.empty:
+                db.store_economic_indicator('M2_US', m2_data_us)
+                m2_stats_us = econ_collector.calculate_m2_growth_rate(m2_data_us)
+                if m2_stats_us['yoy_growth']:
+                    console.print(f"[green]✓[/green] US M2 YoY Growth: {m2_stats_us['yoy_growth']:+.1f}%")
+            
+            # Fetch Eurozone M2
+            m2_data_ez = econ_collector.fetch_m2_data(region="EUROZONE")
+            if not m2_data_ez.empty:
+                db.store_economic_indicator('M2_EUROZONE', m2_data_ez)
+                m2_stats_ez = econ_collector.calculate_m2_growth_rate(m2_data_ez)
+                if m2_stats_ez['yoy_growth']:
+                    console.print(f"[green]✓[/green] Eurozone M2 YoY Growth: {m2_stats_ez['yoy_growth']:+.1f}%")
+            
+            if m2_data_us.empty and m2_data_ez.empty:
                 console.print("[yellow]⚠[/yellow] M2 data not available (FRED API key may be missing)")
         except Exception as e:
             console.print(f"[yellow]⚠[/yellow] Could not fetch M2 data: {str(e)}")
@@ -148,18 +156,27 @@ def update_market_data():
                 db.set_metadata(f'last_update_{index_name.lower()}', new_last_date)
                 updated = True
         
-        # Update M2 data
+        # Update M2 data (both US and Eurozone)
         try:
             from src.economic_data import EconomicDataCollector
             econ_collector = EconomicDataCollector()
             
-            # Get last M2 date
-            m2_df = db.get_economic_indicator('M2')
-            if not m2_df.empty:
-                last_m2_date = m2_df.index[-1].strftime('%Y-%m-%d')
-                new_m2 = econ_collector.update_m2_data(last_m2_date)
-                if new_m2 is not None and not new_m2.empty:
-                    db.store_economic_indicator('M2', new_m2)
+            # Update US M2
+            m2_us_df = db.get_economic_indicator('M2_US')
+            if not m2_us_df.empty:
+                last_m2_us_date = m2_us_df.index[-1].strftime('%Y-%m-%d')
+                new_m2_us = econ_collector.update_m2_data(last_m2_us_date, region="US")
+                if new_m2_us is not None and not new_m2_us.empty:
+                    db.store_economic_indicator('M2_US', new_m2_us)
+                    updated = True
+            
+            # Update Eurozone M2
+            m2_ez_df = db.get_economic_indicator('M2_EUROZONE')
+            if not m2_ez_df.empty:
+                last_m2_ez_date = m2_ez_df.index[-1].strftime('%Y-%m-%d')
+                new_m2_ez = econ_collector.update_m2_data(last_m2_ez_date, region="EUROZONE")
+                if new_m2_ez is not None and not new_m2_ez.empty:
+                    db.store_economic_indicator('M2_EUROZONE', new_m2_ez)
                     updated = True
         except Exception as e:
             console.print(f"[dim]M2 update skipped: {str(e)}[/dim]")
@@ -204,11 +221,19 @@ def print_database_stats(stats: dict):
     console.print(f"[dim]Recommendations: {stats.get('recommendations', 0)}[/dim]")
     
     # Show M2 Money Supply info if available
-    if 'm2_records' in stats and stats['m2_records'] > 0:
-        console.print(f"\n[bold cyan]💵 M2 Money Supply[/bold cyan]")
-        console.print(f"[dim]Records: {stats['m2_records']}[/dim]")
-        if stats.get('m2_yoy_growth') is not None:
-            growth = stats['m2_yoy_growth']
+    if 'm2_us_records' in stats and stats['m2_us_records'] > 0:
+        console.print(f"\n[bold cyan]💵 M2 Money Supply (US)[/bold cyan]")
+        console.print(f"[dim]Records: {stats['m2_us_records']}[/dim]")
+        if stats.get('m2_us_yoy_growth') is not None:
+            growth = stats['m2_us_yoy_growth']
+            color = "green" if growth > 2 else "yellow" if growth > -2 else "red"
+            console.print(f"Latest YoY Growth: [{color}]{growth:+.1f}%[/{color}]")
+    
+    if 'm2_eurozone_records' in stats and stats['m2_eurozone_records'] > 0:
+        console.print(f"\n[bold cyan]💶 M2 Money Supply (Eurozone)[/bold cyan]")
+        console.print(f"[dim]Records: {stats['m2_eurozone_records']}[/dim]")
+        if stats.get('m2_eurozone_yoy_growth') is not None:
+            growth = stats['m2_eurozone_yoy_growth']
             color = "green" if growth > 2 else "yellow" if growth > -2 else "red"
             console.print(f"Latest YoY Growth: [{color}]{growth:+.1f}%[/{color}]")
 
@@ -367,27 +392,49 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
             elif curr_risk['impact'] == 'positive':
                 console.print(f"\n[green]✓ Positive:[/green] Dollar strength enhances EUR returns on USD investments")
         
-        # M2 Money Supply Analysis
+        # M2 Money Supply Analysis (US and Eurozone)
         console.print(f"\n[bold cyan]💵 M2 Money Supply Analysis[/bold cyan]")
         console.print("─" * 60)
-        m2_df = db.get_economic_indicator('M2')
-        if not m2_df.empty:
-            m2_stats = econ_collector.calculate_m2_growth_rate(m2_df)
-            m2_assessment = econ_collector.assess_m2_favorability(m2_stats['yoy_growth'])
+        
+        # US M2
+        console.print(f"\n[bold]🇺🇸 US M2 (for S&P 500, MSCI World)[/bold]")
+        m2_us_df = db.get_economic_indicator('M2_US')
+        if not m2_us_df.empty:
+            m2_us_stats = econ_collector.calculate_m2_growth_rate(m2_us_df)
+            m2_us_assessment = econ_collector.assess_m2_favorability(m2_us_stats['yoy_growth'])
             
-            if m2_stats['current_value'] is not None:
-                console.print(f"Latest M2: ${m2_stats['current_value']:.0f}B")
-            if m2_stats['yoy_growth'] is not None:
-                console.print(f"YoY Growth: [bold]{m2_stats['yoy_growth']:+.2f}%[/bold]")
-            if m2_stats['mom_growth'] is not None:
-                console.print(f"MoM Growth: {m2_stats['mom_growth']:+.2f}%")
+            if m2_us_stats['current_value'] is not None:
+                console.print(f"Latest M2: ${m2_us_stats['current_value']:.0f}B")
+            if m2_us_stats['yoy_growth'] is not None:
+                console.print(f"YoY Growth: [bold]{m2_us_stats['yoy_growth']:+.2f}%[/bold]")
+            if m2_us_stats['mom_growth'] is not None:
+                console.print(f"MoM Growth: {m2_us_stats['mom_growth']:+.2f}%")
             
-            # Favorability assessment
-            impact_color = "green" if m2_assessment['is_favorable'] else "red" if m2_assessment['is_favorable'] == False else "yellow"
-            console.print(f"\nLiquidity Assessment: [{impact_color}]{m2_assessment['impact'].upper()}[/{impact_color}]")
-            console.print(f"Score: {m2_assessment['score']:+d}")
-            console.print(f"Message: {m2_assessment['message']}")
+            impact_color = "green" if m2_us_assessment['is_favorable'] else "red" if m2_us_assessment['is_favorable'] == False else "yellow"
+            console.print(f"Liquidity: [{impact_color}]{m2_us_assessment['impact'].upper()}[/{impact_color}] (Score: {m2_us_assessment['score']:+d})")
+            console.print(f"{m2_us_assessment['message']}")
         else:
+            console.print("[yellow]No US M2 data available[/yellow]")
+        
+        # Eurozone M2
+        console.print(f"\n[bold]🇪🇺 Eurozone M2 (for STOXX 600)[/bold]")
+        m2_ez_df = db.get_economic_indicator('M2_EUROZONE')
+        if not m2_ez_df.empty:
+            m2_ez_stats = econ_collector.calculate_m2_growth_rate(m2_ez_df)
+            m2_ez_assessment = econ_collector.assess_m2_favorability(m2_ez_stats['yoy_growth'])
+            
+            if m2_ez_stats['current_value'] is not None:
+                console.print(f"Latest M2: €{m2_ez_stats['current_value']:.0f}M")
+            if m2_ez_stats['yoy_growth'] is not None:
+                console.print(f"YoY Growth: [bold]{m2_ez_stats['yoy_growth']:+.2f}%[/bold]")
+            if m2_ez_stats['mom_growth'] is not None:
+                console.print(f"MoM Growth: {m2_ez_stats['mom_growth']:+.2f}%")
+            
+            impact_color = "green" if m2_ez_assessment['is_favorable'] else "red" if m2_ez_assessment['is_favorable'] == False else "yellow"
+            console.print(f"Liquidity: [{impact_color}]{m2_ez_assessment['impact'].upper()}[/{impact_color}] (Score: {m2_ez_assessment['score']:+d})")
+            console.print(f"{m2_ez_assessment['message']}")
+        else:
+            console.print("[yellow]No Eurozone M2 data available[/yellow]")
             console.print("[yellow]⚠[/yellow] M2 data not available (FRED API key required)")
             console.print("Set FRED_API_KEY in .env to enable M2 analysis")
         
@@ -561,6 +608,18 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
                 currency_change = curr_risk['change_pct']
                 currency_impact = curr_risk['impact']
             
+            # Select appropriate M2 data based on index
+            if idx == 'STOXX600':
+                # Use Eurozone M2 for STOXX 600
+                m2_df_regional = m2_ez_df
+                m2_stats_regional = m2_ez_stats if not m2_ez_df.empty else {}
+                m2_assessment_regional = m2_ez_assessment if not m2_ez_df.empty else {}
+            else:
+                # Use US M2 for S&P 500 and MSCI World
+                m2_df_regional = m2_us_df
+                m2_stats_regional = m2_us_stats if not m2_us_df.empty else {}
+                m2_assessment_regional = m2_us_assessment if not m2_us_df.empty else {}
+            
             # Create DecisionFactors
             factors = DecisionFactors(
                 # Technical factors
@@ -587,10 +646,10 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
                 ai_bubble_risk=bubble_result['risk'],
                 ai_bubble_level=bubble_result['level'],
                 
-                # M2 Money Supply (KEY FACTOR!)
-                m2_yoy_growth=m2_stats.get('yoy_growth') if not m2_df.empty else None,
-                m2_score=m2_assessment.get('score', 0) if not m2_df.empty else 0,
-                m2_favorability=m2_assessment.get('impact', 'unknown') if not m2_df.empty else 'unknown',
+                # M2 Money Supply (KEY FACTOR!) - Region-specific
+                m2_yoy_growth=m2_stats_regional.get('yoy_growth') if not m2_df_regional.empty else None,
+                m2_score=m2_assessment_regional.get('score', 0) if not m2_df_regional.empty else 0,
+                m2_favorability=m2_assessment_regional.get('impact', 'unknown') if not m2_df_regional.empty else 'unknown',
                 
                 # Currency factors
                 currency_risk_level=currency_risk,
@@ -702,8 +761,13 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
                 'impact': curr_risk['impact'] if not eurusd_df.empty else 'unknown'
             },
             'm2': {
-                'yoy_growth': m2_stats.get('yoy_growth') if not m2_df.empty else None,
-                'favorability': m2_assessment.get('impact', 'unknown') if not m2_df.empty else 'unknown'
+                'us_yoy_growth': m2_us_stats.get('yoy_growth') if not m2_us_df.empty else None,
+                'us_favorability': m2_us_assessment.get('impact', 'unknown') if not m2_us_df.empty else 'unknown',
+                'eurozone_yoy_growth': m2_ez_stats.get('yoy_growth') if not m2_ez_df.empty else None,
+                'eurozone_favorability': m2_ez_assessment.get('impact', 'unknown') if not m2_ez_df.empty else 'unknown',
+                # Backward compatibility
+                'yoy_growth': m2_us_stats.get('yoy_growth') if not m2_us_df.empty else None,
+                'favorability': m2_us_assessment.get('impact', 'unknown') if not m2_us_df.empty else 'unknown'
             },
             'recommendations': {
                 'sp500': {
@@ -767,8 +831,13 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
                     'impact': curr_risk['impact'] if not eurusd_df.empty else 'unknown'
                 },
                 m2_data={
-                    'yoy_growth': m2_stats.get('yoy_growth') if not m2_df.empty else None,
-                    'favorability': m2_assessment.get('impact', 'unknown') if not m2_df.empty else 'unknown'
+                    'us_yoy_growth': m2_us_stats.get('yoy_growth') if not m2_us_df.empty else None,
+                    'us_favorability': m2_us_assessment.get('impact', 'unknown') if not m2_us_df.empty else 'unknown',
+                    'eurozone_yoy_growth': m2_ez_stats.get('yoy_growth') if not m2_ez_df.empty else None,
+                    'eurozone_favorability': m2_ez_assessment.get('impact', 'unknown') if not m2_ez_df.empty else 'unknown',
+                    # Backward compatibility
+                    'yoy_growth': m2_us_stats.get('yoy_growth') if not m2_us_df.empty else None,
+                    'favorability': m2_us_assessment.get('impact', 'unknown') if not m2_us_df.empty else 'unknown'
                 }
             )
             console.print(summary_table)
