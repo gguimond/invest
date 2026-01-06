@@ -151,6 +151,10 @@ $ python invest_advisor.py
 
 #### 2.2.2 Fundamental Analysis
 - **Economic Indicators**:
+  - **M2 Money Supply** - Monetary expansion/contraction (KEY INDICATOR)
+    - Year-over-year growth rate
+    - M2 increasing = favorable for asset prices (more liquidity)
+    - M2 decreasing = headwind for investments (liquidity contraction)
   - Yield curve (2Y vs 10Y treasuries - recession indicator)
   - Unemployment rate trends
   - Inflation data (CPI)
@@ -207,18 +211,21 @@ IF index is down X% from recent high:
   CHECK technical indicators (oversold?)
   CHECK recession probability
   CHECK AI bubble risk
+  CHECK M2 money supply growth (liquidity environment)
   CHECK currency impact (for S&P 500 in EUR terms)
   
   IF (sentiment improving OR bottoming out) AND
      (technical indicators show oversold) AND
      (low recession risk) AND
      (low AI bubble risk) AND
+     (M2 growing OR stable - liquidity supportive) AND
      (dollar stable OR strengthening for S&P 500):
        → RECOMMEND: BUY
        
   ELSE IF (sentiment deteriorating) AND
           (technical indicators show continued weakness) AND
           (high recession risk OR AI bubble concerns) OR
+          (M2 contracting - liquidity headwind) OR
           (dollar weakening significantly - reducing EUR returns):
        → RECOMMEND: AVOID / WAIT
        
@@ -561,26 +568,36 @@ CREATE TABLE metadata (
 ## 4. Implementation Phases
 
 ### Phase 1: Foundation & Database (Week 1)
-- [ ] Setup project structure
-- [ ] Create SQLite database schema
-- [ ] Implement data collector using yfinance
-- [ ] Download 20 years of historical data for SP500, CW8 & EUR/USD
-- [ ] Implement currency-adjusted returns calculator
-- [ ] Test data storage and retrieval
-- [ ] Implement database backup/export
+- [x] Setup project structure
+- [x] Create SQLite database schema
+- [x] Implement data collector using yfinance
+- [x] Download 20 years of historical data for SP500, CW8 & EUR/USD
+- [x] Implement currency-adjusted returns calculator
+- [x] Test data storage and retrieval
+- [x] Implement database backup/export
+- [x] Integrate M2 Money Supply data (FRED API)
 
 ### Phase 2: Technical Analysis (Week 1-2)
-- [ ] Install pandas-ta library
-- [ ] Implement technical indicators for indices:
-  - RSI (Relative Strength Index)
-  - Moving Averages (50-day, 200-day)
-  - MACD
-  - Bollinger Bands
-- [ ] Implement technical indicators for EUR/USD
-- [ ] Create currency impact calculator
-- [ ] Calculate S&P 500 returns in EUR terms
-- [ ] Test on historical data
-- [ ] Optimize for performance
+- [x] Install ta library (technical analysis)
+- [x] Implement technical indicators for indices:
+  - [x] RSI (Relative Strength Index)
+  - [x] Moving Averages (50-day, 200-day SMA/EMA)
+  - [x] MACD
+  - [x] Bollinger Bands
+  - [x] Stochastic Oscillator
+  - [x] ATR (Average True Range)
+- [x] Implement technical indicators for EUR/USD
+- [x] Create currency impact calculator
+- [x] Calculate S&P 500 returns in EUR terms
+- [x] Implement dip detection algorithm
+- [x] Implement trend analysis (Golden Cross, price vs MAs)
+- [x] Implement momentum analysis (RSI, MACD, Stochastic)
+- [x] Implement volatility analysis (Bollinger Bands, ATR)
+- [x] Support/resistance level detection
+- [x] Currency risk assessment
+- [x] Integrate M2 Money Supply into analysis display
+- [x] Test on historical data
+- [x] Optimize for performance
 
 ### Phase 3: News & Sentiment (Week 2)
 - [ ] Implement Google News RSS parser
@@ -873,6 +890,56 @@ def generate_recommendation(
         return 'HOLD', score/100, reasons, risk_factors
     else:
         return 'AVOID', score/100, reasons, risk_factors
+```
+
+### 5.6 M2 Money Supply Assessment
+```python
+def assess_m2_favorability(m2_yoy_growth):
+    """
+    Assess whether M2 growth is favorable for investing
+    
+    Args:
+        m2_yoy_growth: Year-over-year M2 growth percentage
+    
+    Returns:
+        Dictionary with favorability assessment and score
+    """
+    if m2_yoy_growth is None:
+        return {
+            'is_favorable': None,
+            'score': 0,
+            'message': 'M2 data not available',
+            'impact': 'neutral'
+        }
+    
+    if m2_yoy_growth > 5:
+        return {
+            'is_favorable': True,
+            'score': 20,
+            'message': f'Strong M2 expansion (+{m2_yoy_growth:.1f}% YoY) supports asset prices',
+            'impact': 'strongly_positive'
+        }
+    elif m2_yoy_growth > 2:
+        return {
+            'is_favorable': True,
+            'score': 10,
+            'message': f'M2 expanding (+{m2_yoy_growth:.1f}% YoY) moderately supports investment',
+            'impact': 'positive'
+        }
+    elif m2_yoy_growth > -2:
+        return {
+            'is_favorable': None,
+            'score': 0,
+            'message': f'M2 stable ({m2_yoy_growth:+.1f}% YoY) - neutral environment',
+            'impact': 'neutral'
+        }
+    else:
+        return {
+            'is_favorable': False,
+            'score': -15,
+            'message': f'M2 contracting ({m2_yoy_growth:.1f}% YoY) - headwind for assets',
+            'impact': 'negative'
+        }
 ```
 
 ---

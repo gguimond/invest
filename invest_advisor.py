@@ -19,6 +19,8 @@ from src.config import (
 )
 from src.database import Database
 from src.data_collector import DataCollector
+from src.technical_analyzer import TechnicalAnalyzer, assess_currency_risk
+from src.economic_data import EconomicDataCollector
 
 console = Console()
 
@@ -265,19 +267,125 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db)
         # Update market data
         update_market_data()
         
-        # TODO: Phase 2-4 implementation
-        console.print("\n[yellow]ℹ[/yellow]  Analysis features coming in next phases:")
-        console.print("  • Technical analysis (RSI, moving averages, etc.)")
-        console.print("  • News sentiment analysis")
-        console.print("  • Investment recommendations")
-        console.print("  • Currency impact analysis")
+        # Perform technical analysis
+        console.print("\n[bold]📊 Performing Technical Analysis[/bold]")
+        console.print("=" * 60)
         
-        # For now, show what data we have
+        analyzer = TechnicalAnalyzer()
+        econ_collector = EconomicDataCollector()
+        
+        # Analyze each index
+        for idx in ['SP500', 'CW8']:
+            if index != 'both' and index.upper() != idx:
+                continue
+            
+            console.print(f"\n[bold cyan]{'📈' if idx == 'SP500' else '🌍'} {idx} Analysis[/bold cyan]")
+            console.print("─" * 60)
+            
+            # Get data
+            df = db.get_historical_prices(idx)
+            if df.empty:
+                console.print(f"[red]✗[/red] No data available for {idx}")
+                continue
+            
+            # Comprehensive technical analysis
+            analysis = analyzer.calculate_comprehensive_analysis(df)
+            
+            # Current price and basic info
+            current = analysis['dip']['current_price']
+            console.print(f"Current Price: [bold]${current:.2f}[/bold]")
+            
+            # Dip analysis
+            dip = analysis['dip']
+            dip_color = "green" if dip['is_major_dip'] else "yellow" if dip['is_significant_dip'] else "white"
+            console.print(f"Dip from High: [{dip_color}]{dip['dip_percentage']:.2f}%[/{dip_color}] "
+                         f"(${dip['recent_high']:.2f}, {dip['days_from_high']} days ago)")
+            
+            # Trend analysis
+            trend = analysis['trend']
+            trend_emoji = "📈" if "up" in trend['trend'] else "📉" if "down" in trend['trend'] else "↔️"
+            console.print(f"Trend: {trend_emoji} [bold]{trend['trend'].replace('_', ' ').title()}[/bold]")
+            console.print(f"  • Price vs 50-day MA: {trend['price_vs_sma50']:+.2f}%")
+            console.print(f"  • Price vs 200-day MA: {trend['price_vs_sma200']:+.2f}%")
+            console.print(f"  • Golden Cross: {'✓' if trend['golden_cross'] else '✗'}")
+            
+            # Momentum analysis
+            momentum = analysis['momentum']
+            rsi_emoji = "🔴" if momentum['rsi_status'] == 'overbought' else "🟢" if momentum['rsi_status'] == 'oversold' else "⚪"
+            console.print(f"\nMomentum Indicators:")
+            console.print(f"  • RSI (14): {rsi_emoji} {momentum['rsi']:.1f} ({momentum['rsi_status']})")
+            console.print(f"  • MACD: {'🟢 Bullish' if momentum['macd_bullish'] else '🔴 Bearish'} "
+                         f"(diff: {momentum['macd_diff']:.2f})")
+            console.print(f"  • Stochastic: {momentum['stochastic_k']:.1f} ({momentum['stochastic_status']})")
+            
+            # Volatility analysis
+            volatility = analysis['volatility']
+            console.print(f"\nVolatility:")
+            console.print(f"  • Recent Volatility: {volatility['recent_volatility']:.1f}% (annualized) - {volatility['volatility_level']}")
+            console.print(f"  • Bollinger Position: {volatility['bollinger_position']:.0f}% of range")
+            console.print(f"  • ATR: {volatility['atr_percentage']:.2f}% of price")
+            
+            # Support/Resistance
+            sr = analysis['support_resistance']
+            console.print(f"\nSupport/Resistance:")
+            console.print(f"  • Resistance: ${sr['resistance']:.2f} ({sr['distance_to_resistance']:+.1f}%)")
+            console.print(f"  • Support: ${sr['support']:.2f} ({sr['distance_to_support']:+.1f}%)")
+        
+        # Currency analysis (for EUR investors)
+        console.print(f"\n[bold cyan]💱 EUR/USD Currency Analysis[/bold cyan]")
+        console.print("─" * 60)
+        eurusd_df = db.get_historical_prices('EURUSD')
+        if not eurusd_df.empty:
+            curr_analysis = analyzer.calculate_comprehensive_analysis(eurusd_df)
+            curr_risk = assess_currency_risk(eurusd_df)
+            
+            current_rate = curr_analysis['dip']['current_price']
+            console.print(f"Current Rate: [bold]{current_rate:.4f}[/bold] (€1 = ${current_rate:.4f})")
+            console.print(f"30-day Change: {curr_risk['change_pct']:+.2f}%")
+            console.print(f"Dollar Trend: {curr_risk['trend'].title()}")
+            console.print(f"Currency Risk: {curr_risk['risk_level'].upper()} ({curr_risk['impact']})")
+            console.print(f"RSI: {curr_analysis['momentum']['rsi']:.1f}")
+            
+            # Impact on EUR investors
+            if curr_risk['impact'] in ['negative', 'very_negative']:
+                console.print(f"\n[yellow]⚠ Warning:[/yellow] Dollar weakness reduces EUR returns on USD investments")
+            elif curr_risk['impact'] == 'positive':
+                console.print(f"\n[green]✓ Positive:[/green] Dollar strength enhances EUR returns on USD investments")
+        
+        # M2 Money Supply Analysis
+        console.print(f"\n[bold cyan]💵 M2 Money Supply Analysis[/bold cyan]")
+        console.print("─" * 60)
+        m2_df = db.get_economic_indicator('M2')
+        if not m2_df.empty:
+            m2_stats = econ_collector.calculate_m2_growth_rate(m2_df)
+            m2_assessment = econ_collector.assess_m2_favorability(m2_stats['yoy_growth'])
+            
+            if m2_stats['current_value'] is not None:
+                console.print(f"Latest M2: ${m2_stats['current_value']:.0f}B")
+            if m2_stats['yoy_growth'] is not None:
+                console.print(f"YoY Growth: [bold]{m2_stats['yoy_growth']:+.2f}%[/bold]")
+            if m2_stats['mom_growth'] is not None:
+                console.print(f"MoM Growth: {m2_stats['mom_growth']:+.2f}%")
+            
+            # Favorability assessment
+            impact_color = "green" if m2_assessment['is_favorable'] else "red" if m2_assessment['is_favorable'] == False else "yellow"
+            console.print(f"\nLiquidity Assessment: [{impact_color}]{m2_assessment['impact'].upper()}[/{impact_color}]")
+            console.print(f"Score: {m2_assessment['score']:+d}")
+            console.print(f"Message: {m2_assessment['message']}")
+        else:
+            console.print("[yellow]⚠[/yellow] M2 data not available (FRED API key required)")
+            console.print("Set FRED_API_KEY in .env to enable M2 analysis")
+        
+        # Summary
+        console.print("\n[bold]📋 Summary[/bold]")
+        console.print("=" * 60)
         stats_data = db.get_database_stats()
         print_database_stats(stats_data)
         
-        console.print("\n[dim]Phase 1 (Database & Data Collection) - Complete ✓[/dim]")
-        console.print("[dim]Phase 2 (Technical Analysis) - Coming soon[/dim]")
+        console.print("\n[bold green]✓ Phase 1 (Database & Data Collection) - Complete[/bold green]")
+        console.print("[bold green]✓ Phase 2 (Technical Analysis) - Complete[/bold green]")
+        console.print("[dim]Phase 3 (News & Sentiment) - Next[/dim]")
+        console.print("[dim]Phase 4 (Decision Engine) - Coming soon[/dim]")
 
 
 if __name__ == '__main__':

@@ -193,10 +193,14 @@ class DataCollector:
         Returns:
             DataFrame with currency-adjusted returns
         """
+        # Normalize column names (handle both 'Adj Close' and 'adj_close')
+        sp500_close_col = 'Adj Close' if 'Adj Close' in sp500_data.columns else 'adj_close' if 'adj_close' in sp500_data.columns else 'close'
+        eurusd_close_col = 'Adj Close' if 'Adj Close' in eur_usd_data.columns else 'adj_close' if 'adj_close' in eur_usd_data.columns else 'close'
+        
         # Align data by date
         df = pd.DataFrame()
-        df['sp500_usd_price'] = sp500_data['Adj Close']
-        df['eur_usd_rate'] = eur_usd_data['Adj Close']
+        df['sp500_usd_price'] = sp500_data[sp500_close_col]
+        df['eur_usd_rate'] = eur_usd_data[eurusd_close_col]
         
         # Remove NaN values
         df = df.dropna()
