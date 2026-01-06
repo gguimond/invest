@@ -23,6 +23,7 @@ from src.technical_analyzer import TechnicalAnalyzer, assess_currency_risk
 from src.economic_data import EconomicDataCollector
 from src.news_collector import NewsCollector
 from src.sentiment_analyzer import SentimentAnalyzer
+from src.decision_engine import DecisionEngine, DecisionFactors
 
 console = Console()
 
@@ -490,6 +491,151 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db)
         
         console.print(f"[green]✓[/green] News analysis complete")
         
+        # ============================================================
+        # PHASE 4: DECISION ENGINE 🎯
+        # ============================================================
+        console.print(f"\n[bold cyan]🎯 Phase 4: Investment Decision Engine[/bold cyan]")
+        console.print("=" * 60)
+        console.print(f"Risk Tolerance: [bold]{risk.upper()}[/bold]\n")
+        
+        decision_engine = DecisionEngine(risk_tolerance=risk)
+        
+        # Prepare data for decision engine
+        recommendations = {}
+        
+        for idx in ['SP500', 'CW8']:
+            if index != 'both' and index.upper() != idx:
+                continue
+            
+            console.print(f"[bold cyan]{'📈' if idx == 'SP500' else '🌍'} {idx} Investment Recommendation[/bold cyan]")
+            console.print("─" * 60)
+            
+            # Get technical analysis
+            df = db.get_historical_prices(idx)
+            if df.empty:
+                console.print(f"[red]✗[/red] No data for {idx}")
+                continue
+            
+            tech_analysis = analyzer.calculate_comprehensive_analysis(df)
+            
+            # Get sentiment for this index
+            category_key = 'sp500' if idx == 'SP500' else 'cw8'
+            index_sentiment = sentiment_results.get(category_key, {}).get('aggregate', {})
+            
+            # Use overall sentiment if index-specific not available
+            if not index_sentiment:
+                index_sentiment = overall_sentiment
+            
+            # Get currency risk (for SP500)
+            currency_risk = None
+            currency_change = None
+            currency_impact = None
+            
+            if idx == 'SP500' and not eurusd_df.empty:
+                curr_risk = assess_currency_risk(eurusd_df)
+                currency_risk = curr_risk['risk_level']
+                currency_change = curr_risk['change_pct']
+                currency_impact = curr_risk['impact']
+            
+            # Create DecisionFactors
+            factors = DecisionFactors(
+                # Technical factors
+                dip_percentage=tech_analysis['dip']['dip_percentage'],
+                rsi=tech_analysis['momentum']['rsi'],
+                rsi_status=tech_analysis['momentum']['rsi_status'],
+                macd_bullish=tech_analysis['momentum']['macd_bullish'],
+                trend=tech_analysis['trend']['trend'],
+                price_vs_ma50=tech_analysis['trend']['price_vs_sma50'],
+                price_vs_ma200=tech_analysis['trend']['price_vs_sma200'],
+                golden_cross=tech_analysis['trend']['golden_cross'],
+                volatility_level=tech_analysis['volatility']['volatility_level'],
+                
+                # Sentiment factors
+                overall_sentiment=index_sentiment.get('sentiment_score', 0),
+                sentiment_label=index_sentiment.get('sentiment_label', 'neutral'),
+                market_tone=market_analysis['market_sentiment'],
+                bullish_ratio=market_analysis['bullish_ratio'],
+                bearish_ratio=market_analysis['bearish_ratio'],
+                
+                # Risk factors
+                recession_probability=recession_result['probability'],
+                recession_level=recession_result['level'],
+                ai_bubble_risk=bubble_result['risk'],
+                ai_bubble_level=bubble_result['level'],
+                
+                # M2 Money Supply (KEY FACTOR!)
+                m2_yoy_growth=m2_stats.get('yoy_growth') if not m2_df.empty else None,
+                m2_score=m2_assessment.get('score', 0) if not m2_df.empty else 0,
+                m2_favorability=m2_assessment.get('impact', 'unknown') if not m2_df.empty else 'unknown',
+                
+                # Currency factors
+                currency_risk_level=currency_risk,
+                currency_change_pct=currency_change,
+                currency_impact=currency_impact
+            )
+            
+            # Generate recommendation
+            result = decision_engine.generate_recommendation(idx, factors)
+            recommendations[idx] = result
+            
+            # Display recommendation
+            rec = result['recommendation'].value
+            confidence = result['confidence']
+            score = result['score']
+            
+            # Color coding
+            if rec == 'STRONG_BUY':
+                rec_color = 'bold green'
+                emoji = '🚀'
+            elif rec == 'BUY':
+                rec_color = 'green'
+                emoji = '✅'
+            elif rec == 'HOLD':
+                rec_color = 'yellow'
+                emoji = '⏸️'
+            else:  # AVOID
+                rec_color = 'red'
+                emoji = '🛑'
+            
+            console.print(f"\n[{rec_color}]{emoji} RECOMMENDATION: {rec}[/{rec_color}]")
+            console.print(f"Confidence: {confidence:.0%}")
+            console.print(f"Decision Score: {score:+d}/100")
+            
+            # Show reasons
+            if result['reasons']:
+                console.print(f"\n[bold green]✓ Positive Factors:[/bold green]")
+                for reason in result['reasons']:
+                    console.print(f"  • {reason}")
+            
+            # Show risk factors
+            if result['risk_factors']:
+                console.print(f"\n[bold red]⚠ Risk Factors:[/bold red]")
+                for risk in result['risk_factors']:
+                    console.print(f"  • {risk}")
+            
+            console.print()
+        
+        # Comparative analysis (if both indices analyzed)
+        if len(recommendations) == 2:
+            console.print(f"\n[bold cyan]⚖️ Comparative Analysis[/bold cyan]")
+            console.print("=" * 60)
+            
+            comparison = decision_engine.compare_recommendations(
+                recommendations['SP500'],
+                recommendations['CW8']
+            )
+            
+            console.print(f"{comparison['message']}")
+            console.print(f"  • S&P 500 Score: {comparison['sp500_score']:+d}")
+            console.print(f"  • MSCI World Score: {comparison['cw8_score']:+d}")
+            console.print(f"  • Difference: {comparison['score_difference']} points")
+            
+            overall_color = 'bold green' if comparison['overall_recommendation'] == 'INVEST' else \
+                           'yellow' if comparison['overall_recommendation'] in ['SELECTIVE', 'WAIT'] else 'red'
+            
+            console.print(f"\n[{overall_color}]📊 OVERALL: {comparison['overall_recommendation']}[/{overall_color}]")
+            console.print(f"[{overall_color}]{comparison['action']}[/{overall_color}]")
+        
         # Summary
         console.print("\n[bold]📋 Summary[/bold]")
         console.print("=" * 60)
@@ -497,9 +643,10 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db)
         print_database_stats(stats_data)
         
         console.print("\n[bold green]✓ Phase 1 (Database & Data Collection) - Complete[/bold green]")
-        console.print("[bold green]✓ Phase 2 (Technical Analysis) - Complete[/bold green]")
+        console.print("[bold green]✓ Phase 2 (Technical Analysis + M2) - Complete[/bold green]")
         console.print("[bold green]✓ Phase 3 (News & Sentiment) - Complete[/bold green]")
-        console.print("[dim]Phase 4 (Decision Engine) - Next[/dim]")
+        console.print("[bold green]✓ Phase 4 (Decision Engine) - Complete[/bold green]")
+        console.print("[dim]Phase 5 (CLI Enhancement & Reports) - Next[/dim]")
 
 
 if __name__ == '__main__':
