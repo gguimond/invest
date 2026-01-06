@@ -722,6 +722,36 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
             
             console.print(f"\n[{overall_color}]📊 OVERALL: {comparison['overall_recommendation']}[/{overall_color}]")
             console.print(f"[{overall_color}]{comparison['action']}[/{overall_color}]")
+            
+            # Display diversification suggestions
+            if 'diversification' in comparison:
+                diversification = comparison['diversification']
+                console.print(f"\n[bold cyan]💼 Portfolio Allocation Suggestions[/bold cyan]")
+                console.print("─" * 60)
+                console.print(f"{diversification['rationale']}")
+                console.print(f"\nRecommended for your risk profile ([bold]{diversification['recommended_profile']}[/bold]):")
+                
+                allocations = diversification['allocations']
+                
+                # Display user's risk profile allocation
+                user_profile = diversification['recommended_profile']
+                if user_profile in allocations:
+                    alloc = allocations[user_profile]
+                    console.print(f"\n[bold green]✓ {user_profile.title()} Portfolio:[/bold green]")
+                    console.print(f"  • S&P 500: {alloc['sp500']}%")
+                    console.print(f"  • MSCI World: {alloc['cw8']}%")
+                    if 'stoxx600' in alloc:
+                        console.print(f"  • STOXX 600: {alloc['stoxx600']}%")
+                    console.print(f"  [dim]{alloc['description']}[/dim]")
+                
+                # Show alternative profiles
+                console.print(f"\n[dim]Alternative allocations:[/dim]")
+                for profile_name, alloc in allocations.items():
+                    if profile_name != user_profile:
+                        alloc_str = f"{profile_name.title()}: SP500 {alloc['sp500']}%, CW8 {alloc['cw8']}%"
+                        if 'stoxx600' in alloc:
+                            alloc_str += f", STOXX600 {alloc['stoxx600']}%"
+                        console.print(f"[dim]{alloc_str}[/dim]")
         else:
             comparison = None
         

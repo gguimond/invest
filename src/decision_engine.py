@@ -383,6 +383,13 @@ class DecisionEngine:
             overall = "AVOID"
             action = "Not a good time to invest - multiple risk factors present"
         
+        # Generate diversification suggestions
+        diversification = self._generate_diversification_suggestions(
+            scores, 
+            preference, 
+            stoxx600_result is not None
+        )
+        
         return {
             'preference': preference,
             'message': message,
@@ -392,5 +399,148 @@ class DecisionEngine:
             'cw8_score': scores['cw8'],
             'stoxx600_score': scores.get('stoxx600'),
             'score_difference': best_score - worst_score,
-            'scores': scores
+            'scores': scores,
+            'diversification': diversification
+        }
+    
+    def _generate_diversification_suggestions(
+        self, 
+        scores: Dict[str, int], 
+        preference: str,
+        has_stoxx600: bool
+    ) -> Dict:
+        """
+        Generate portfolio allocation suggestions based on scores
+        
+        Args:
+            scores: Dictionary of index scores
+            preference: Preferred index or 'multiple'
+            has_stoxx600: Whether STOXX600 is analyzed
+            
+        Returns:
+            Dictionary with allocation suggestions
+        """
+        allocations = {}
+        
+        if not has_stoxx600:
+            # 2-way allocation (SP500 vs CW8)
+            total = scores['sp500'] + scores['cw8']
+            if total > 0:
+                sp500_pct = max(0, min(100, int((scores['sp500'] / total) * 100)))
+                cw8_pct = 100 - sp500_pct
+            else:
+                sp500_pct = 50
+                cw8_pct = 50
+            
+            allocations = {
+                'conservative': {
+                    'sp500': min(sp500_pct, 40),
+                    'cw8': 100 - min(sp500_pct, 40),
+                    'description': 'Lower risk, favor global diversification'
+                },
+                'moderate': {
+                    'sp500': sp500_pct,
+                    'cw8': cw8_pct,
+                    'description': 'Balanced allocation based on current scores'
+                },
+                'aggressive': {
+                    'sp500': min(sp500_pct + 10, 70),
+                    'cw8': max(cw8_pct - 10, 30),
+                    'description': 'Higher concentration in best performer'
+                }
+            }
+        else:
+            # 3-way allocation (SP500 vs CW8 vs STOXX600)
+            total = scores['sp500'] + scores['cw8'] + scores['stoxx600']
+            
+            if total > 0:
+                sp500_base = max(0, int((scores['sp500'] / total) * 100))
+                cw8_base = max(0, int((scores['cw8'] / total) * 100))
+                stoxx_base = 100 - sp500_base - cw8_base  # Ensure 100% total
+            else:
+                sp500_base = 33
+                cw8_base = 33
+                stoxx_base = 34
+            
+            # Conservative: Favor STOXX600 (no currency risk), balanced otherwise
+            allocations['conservative'] = {
+                'sp500': max(10, min(sp500_base, 30)),
+                'cw8': max(20, min(cw8_base, 40)),
+                'stoxx600': None,  # Calculate remainder
+                'description': 'EUR investor focus: Favor European exposure, no currency risk'
+            }
+            allocations['conservative']['stoxx600'] = (
+                100 - allocations['conservative']['sp500'] - allocations['conservative']['cw8']
+            )
+            
+            # Moderate: Score-based allocation
+            allocations['moderate'] = {
+                'sp500': sp500_base,
+                'cw8': cw8_base,
+                'stoxx600': stoxx_base,
+                'description': 'Balanced allocation based on current opportunity scores'
+            }
+            
+            # Aggressive: Concentrate in top 2 performers
+            sorted_indices = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+            best = sorted_indices[0][0]
+            second = sorted_indices[1][0]
+            
+            if best == 'sp500':
+                best_key = 'sp500'
+            elif best == 'cw8':
+                best_key = 'cw8'
+            else:
+                best_key = 'stoxx600'
+            
+            if second == 'sp500':
+                second_key = 'sp500'
+            elif second == 'cw8':
+                second_key = 'cw8'
+            else:
+                second_key = 'stoxx600'
+            
+            allocations['aggressive'] = {
+                'sp500': 0,
+                'cw8': 0,
+                'stoxx600': 0,
+                'description': f'Concentrated in best performers: {best.upper()} and {second.upper()}'
+            }
+            allocations['aggressive'][best_key] = 60
+            allocations['aggressive'][second_key] = 40
+        
+        # Add investment rationale
+        if has_stoxx600:
+            if preference == 'stoxx600':
+                rationale = (
+                    "🇪🇺 STOXX 600 is preferred: No currency risk for EUR investors, "
+                    "strong European opportunity. Consider 50-60% allocation."
+                )
+            elif preference == 'sp500':
+                rationale = (
+                    "🇺🇸 S&P 500 shows strength, but watch USD/EUR exchange rate. "
+                    "Consider hedging currency risk or limiting exposure."
+                )
+            elif preference == 'cw8':
+                rationale = (
+                    "🌍 MSCI World offers global diversification with mixed currency exposure. "
+                    "Good balance between growth and risk management."
+                )
+            else:
+                rationale = (
+                    "⚖️ All indices show similar opportunities. Diversify across all three "
+                    "for geographic and currency diversification."
+                )
+        else:
+            if preference == 'sp500':
+                rationale = "🇺🇸 S&P 500 preferred, but monitor currency impact for EUR investors."
+            elif preference == 'cw8':
+                rationale = "🌍 MSCI World preferred for global diversification."
+            else:
+                rationale = "⚖️ Similar opportunities - diversify between both indices."
+        
+        return {
+            'allocations': allocations,
+            'rationale': rationale,
+            'recommended_profile': self.risk_tolerance.value
         }
