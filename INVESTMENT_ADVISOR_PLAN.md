@@ -614,21 +614,23 @@ CREATE TABLE metadata (
 - [x] Store news with sentiment scores
 
 ### Phase 4: Decision Engine (Week 3)
-- [ ] Implement dip detection algorithm
-- [ ] Create recession probability calculator
-- [ ] Implement AI bubble risk detector
-- [ ] Implement currency risk assessment
-- [ ] Build main recommendation logic with currency adjustments
-- [ ] Implement confidence scoring (adjusted for currency risk)
-- [ ] Create risk profile handling
+- [x] Implement dip detection algorithm
+- [x] Create recession probability calculator
+- [x] Implement AI bubble risk detector
+- [x] Implement currency risk assessment
+- [x] Build main recommendation logic with currency adjustments (M2 integrated!)
+- [x] Implement confidence scoring (adjusted for currency risk)
+- [x] Create risk profile handling
+- [x] Comparative analysis (SP500 vs CW8)
 
-### Phase 5: CLI Interface (Week 3-4)
-- [ ] Design CLI output format
-- [ ] Implement colored terminal output (rich library)
-- [ ] Create report formatter
-- [ ] Add command-line arguments parsing
-- [ ] Implement progress indicators
-- [ ] Create report export functionality
+### Phase 5: CLI Interface Enhancement (Week 3-4)
+- [x] Enhanced report output with tables
+- [x] Summary dashboard view (--summary flag)
+- [x] Export to TXT format
+- [x] Export to JSON format
+- [x] Export to CSV format
+- [x] Integrated report generation in main CLI
+- [x] Beautiful Rich tables for data visualization
 
 ### Phase 6: Testing & Polish (Week 4)
 - [ ] Unit tests for all components

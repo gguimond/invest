@@ -24,6 +24,7 @@ from src.economic_data import EconomicDataCollector
 from src.news_collector import NewsCollector
 from src.sentiment_analyzer import SentimentAnalyzer
 from src.decision_engine import DecisionEngine, DecisionFactors
+from src.report_generator import ReportGenerator
 
 console = Console()
 
@@ -223,7 +224,10 @@ def print_database_stats(stats: dict):
 @click.option('--verbose', is_flag=True, help='Show detailed output')
 @click.option('--force-update', is_flag=True, help='Force full data refresh')
 @click.option('--export-db', is_flag=True, help='Export database to CSV files')
-def main(init, force_init, stats, risk, index, verbose, force_update, export_db):
+@click.option('--export-report', type=click.Choice(['txt', 'json', 'csv', 'all']),
+              help='Export report to file format(s)')
+@click.option('--summary', is_flag=True, help='Show compact summary view with tables')
+def main(init, force_init, stats, risk, index, verbose, force_update, export_db, export_report, summary):
     """Investment Advisory CLI - Should I invest now?"""
     
     print_banner()
@@ -502,6 +506,7 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db)
         
         # Prepare data for decision engine
         recommendations = {}
+        tech_analyses = {}  # Store for later use in reports
         
         for idx in ['SP500', 'CW8']:
             if index != 'both' and index.upper() != idx:
@@ -517,6 +522,7 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db)
                 continue
             
             tech_analysis = analyzer.calculate_comprehensive_analysis(df)
+            tech_analyses[idx] = tech_analysis  # Store for reports
             
             # Get sentiment for this index
             category_key = 'sp500' if idx == 'SP500' else 'cw8'
@@ -635,18 +641,184 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db)
             
             console.print(f"\n[{overall_color}]📊 OVERALL: {comparison['overall_recommendation']}[/{overall_color}]")
             console.print(f"[{overall_color}]{comparison['action']}[/{overall_color}]")
+        else:
+            comparison = None
+        
+        # ============================================================
+        # PHASE 5: ENHANCED REPORTING & EXPORT 📊
+        # ============================================================
+        
+        # Prepare report data
+        report_generator = ReportGenerator(str(REPORTS_DIR))
+        
+        # Get stored analyses safely
+        tech_analysis_sp500 = tech_analyses.get('SP500', {})
+        tech_analysis_cw8 = tech_analyses.get('CW8', {})
+        sp500_sentiment = sentiment_results.get('sp500', {}).get('aggregate', overall_sentiment)
+        cw8_sentiment = sentiment_results.get('cw8', {}).get('aggregate', overall_sentiment)
+        
+        report_data = {
+            'timestamp': datetime.now().isoformat(),
+            'risk_tolerance': risk,
+            'sp500': {
+                'current_price': tech_analysis_sp500.get('dip', {}).get('current_price', 0),
+                'dip_pct': tech_analysis_sp500.get('dip', {}).get('dip_percentage', 0),
+                'rsi': tech_analysis_sp500.get('momentum', {}).get('rsi', 0),
+                'trend': tech_analysis_sp500.get('trend', {}).get('trend', 'unknown'),
+                'sentiment': sp500_sentiment.get('sentiment_score', 0)
+            },
+            'cw8': {
+                'current_price': tech_analysis_cw8.get('dip', {}).get('current_price', 0),
+                'dip_pct': tech_analysis_cw8.get('dip', {}).get('dip_percentage', 0),
+                'rsi': tech_analysis_cw8.get('momentum', {}).get('rsi', 0),
+                'trend': tech_analysis_cw8.get('trend', {}).get('trend', 'unknown'),
+                'sentiment': cw8_sentiment.get('sentiment_score', 0)
+            },
+            'currency': {
+                'current_rate': curr_analysis['dip']['current_price'] if not eurusd_df.empty else 0,
+                'change_pct': curr_risk['change_pct'] if not eurusd_df.empty else 0,
+                'impact': curr_risk['impact'] if not eurusd_df.empty else 'unknown'
+            },
+            'm2': {
+                'yoy_growth': m2_stats.get('yoy_growth') if not m2_df.empty else None,
+                'favorability': m2_assessment.get('impact', 'unknown') if not m2_df.empty else 'unknown'
+            },
+            'recommendations': {
+                'sp500': {
+                    'recommendation': recommendations.get('SP500', {}).get('recommendation', 'HOLD').value if hasattr(recommendations.get('SP500', {}).get('recommendation'), 'value') else 'HOLD',
+                    'confidence': recommendations.get('SP500', {}).get('confidence', 0),
+                    'score': recommendations.get('SP500', {}).get('score', 0),
+                    'reasons': recommendations.get('SP500', {}).get('reasons', []),
+                    'risk_factors': recommendations.get('SP500', {}).get('risk_factors', [])
+                },
+                'cw8': {
+                    'recommendation': recommendations.get('CW8', {}).get('recommendation', 'HOLD').value if hasattr(recommendations.get('CW8', {}).get('recommendation'), 'value') else 'HOLD',
+                    'confidence': recommendations.get('CW8', {}).get('confidence', 0),
+                    'score': recommendations.get('CW8', {}).get('score', 0),
+                    'reasons': recommendations.get('CW8', {}).get('reasons', []),
+                    'risk_factors': recommendations.get('CW8', {}).get('risk_factors', [])
+                }
+            },
+            'comparison': comparison,
+            'risks': {
+                'recession_prob': recession_result['probability'],
+                'recession_level': recession_result['level'],
+                'ai_bubble_risk': bubble_result['risk'],
+                'ai_bubble_level': bubble_result['level'],
+                'market_tone': market_analysis['market_sentiment'],
+                'bullish_ratio': market_analysis['bullish_ratio'],
+                'bearish_ratio': market_analysis['bearish_ratio']
+            }
+        }
+        
+        # Store references for summary tables
+        tech_analysis_sp500 = analyzer.calculate_comprehensive_analysis(db.get_historical_prices('SP500'))
+        tech_analysis_cw8 = analyzer.calculate_comprehensive_analysis(db.get_historical_prices('CW8'))
+        sp500_sentiment = sentiment_results.get('sp500', {}).get('aggregate', overall_sentiment)
+        cw8_sentiment = sentiment_results.get('cw8', {}).get('aggregate', overall_sentiment)
+        
+        # Show summary tables if requested
+        if summary or export_report:
+            console.print("\n[bold cyan]" + "=" * 60 + "[/bold cyan]")
+            console.print("[bold cyan]� EXECUTIVE SUMMARY[/bold cyan]")
+            console.print("[bold cyan]" + "=" * 60 + "[/bold cyan]\n")
+            
+            # Market Summary Table
+            summary_table = report_generator.create_summary_table(
+                sp500_data={
+                    'current_price': tech_analysis_sp500['dip']['current_price'],
+                    'dip_pct': tech_analysis_sp500['dip']['dip_percentage'],
+                    'rsi': tech_analysis_sp500['momentum']['rsi'],
+                    'trend': tech_analysis_sp500['trend']['trend'],
+                    'sentiment': sp500_sentiment.get('sentiment_score', 0)
+                },
+                cw8_data={
+                    'current_price': tech_analysis_cw8['dip']['current_price'],
+                    'dip_pct': tech_analysis_cw8['dip']['dip_percentage'],
+                    'rsi': tech_analysis_cw8['momentum']['rsi'],
+                    'trend': tech_analysis_cw8['trend']['trend'],
+                    'sentiment': cw8_sentiment.get('sentiment_score', 0)
+                },
+                currency_data={
+                    'current_rate': curr_analysis['dip']['current_price'] if not eurusd_df.empty else 0,
+                    'change_pct': curr_risk['change_pct'] if not eurusd_df.empty else 0,
+                    'impact': curr_risk['impact'] if not eurusd_df.empty else 'unknown'
+                },
+                m2_data={
+                    'yoy_growth': m2_stats.get('yoy_growth') if not m2_df.empty else None,
+                    'favorability': m2_assessment.get('impact', 'unknown') if not m2_df.empty else 'unknown'
+                }
+            )
+            console.print(summary_table)
+            console.print()
+            
+            # Recommendation Table
+            if len(recommendations) == 2:
+                rec_table = report_generator.create_recommendation_table(
+                    recommendations['SP500'],
+                    recommendations['CW8'],
+                    comparison
+                )
+                console.print(rec_table)
+                console.print()
+            
+            # Risk Assessment Table
+            risk_table = report_generator.create_risk_assessment_table(
+                recession_result['probability'],
+                recession_result['level'],
+                bubble_result['risk'],
+                bubble_result['level'],
+                market_analysis['market_sentiment'],
+                market_analysis['bullish_ratio'],
+                market_analysis['bearish_ratio']
+            )
+            console.print(risk_table)
+            console.print()
+        
+        # Export reports if requested
+        if export_report:
+            console.print("\n[bold cyan]📁 Exporting Reports[/bold cyan]")
+            console.print("=" * 60)
+            
+            exported_files = []
+            
+            if export_report in ['txt', 'all']:
+                filepath = report_generator.export_to_txt(report_data)
+                console.print(f"[green]✓[/green] TXT report: {filepath}")
+                exported_files.append(filepath)
+            
+            if export_report in ['json', 'all']:
+                filepath = report_generator.export_to_json(report_data)
+                console.print(f"[green]✓[/green] JSON report: {filepath}")
+                exported_files.append(filepath)
+            
+            if export_report in ['csv', 'all']:
+                filepath = report_generator.export_to_csv(report_data)
+                console.print(f"[green]✓[/green] CSV report: {filepath}")
+                exported_files.append(filepath)
+            
+            console.print(f"\n[bold green]✓ Exported {len(exported_files)} report(s)[/bold green]")
         
         # Summary
-        console.print("\n[bold]📋 Summary[/bold]")
-        console.print("=" * 60)
-        stats_data = db.get_database_stats()
-        print_database_stats(stats_data)
+        if not summary:
+            console.print("\n[bold]�📋 Summary[/bold]")
+            console.print("=" * 60)
+            stats_data = db.get_database_stats()
+            print_database_stats(stats_data)
         
         console.print("\n[bold green]✓ Phase 1 (Database & Data Collection) - Complete[/bold green]")
         console.print("[bold green]✓ Phase 2 (Technical Analysis + M2) - Complete[/bold green]")
         console.print("[bold green]✓ Phase 3 (News & Sentiment) - Complete[/bold green]")
         console.print("[bold green]✓ Phase 4 (Decision Engine) - Complete[/bold green]")
-        console.print("[dim]Phase 5 (CLI Enhancement & Reports) - Next[/dim]")
+        console.print("[bold green]✓ Phase 5 (CLI Enhancement & Reports) - Complete[/bold green]")
+        console.print("[dim]🎉 All core phases complete![/dim]")
+        
+        # Tips
+        if not summary and not export_report:
+            console.print("\n[dim]💡 Tips:[/dim]")
+            console.print("[dim]  • Use --summary for compact table view[/dim]")
+            console.print("[dim]  • Use --export-report txt/json/csv/all to save reports[/dim]")
+            console.print("[dim]  • Use --risk conservative/moderate/aggressive to adjust thresholds[/dim]")
 
 
 if __name__ == '__main__':
