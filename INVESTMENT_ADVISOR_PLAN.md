@@ -600,14 +600,18 @@ CREATE TABLE metadata (
 - [x] Optimize for performance
 
 ### Phase 3: News & Sentiment (Week 2)
-- [ ] Implement Google News RSS parser
-- [ ] Implement Yahoo Finance RSS parser
-- [ ] Add currency-specific news collection (Fed, ECB)
-- [ ] Install VADER sentiment analyzer
-- [ ] Create sentiment aggregation logic
-- [ ] Implement dollar strength/weakness sentiment analysis
-- [ ] Test sentiment analysis accuracy
-- [ ] Store news with sentiment scores
+- [x] Implement Google News RSS parser
+- [x] Implement Yahoo Finance RSS parser
+- [x] Add currency-specific news collection (Fed, ECB)
+- [x] Install VADER sentiment analyzer
+- [x] Create sentiment aggregation logic
+- [x] Implement dollar strength/weakness sentiment analysis
+- [x] Implement recession probability calculator (news-based)
+- [x] Implement AI bubble risk detector (news-based)
+- [x] Market sentiment analysis (bullish/bearish)
+- [x] Category-based sentiment (SP500, CW8, M2, EUR/USD, etc.)
+- [x] Test sentiment analysis accuracy
+- [x] Store news with sentiment scores
 
 ### Phase 4: Decision Engine (Week 3)
 - [ ] Implement dip detection algorithm

@@ -21,6 +21,8 @@ from src.database import Database
 from src.data_collector import DataCollector
 from src.technical_analyzer import TechnicalAnalyzer, assess_currency_risk
 from src.economic_data import EconomicDataCollector
+from src.news_collector import NewsCollector
+from src.sentiment_analyzer import SentimentAnalyzer
 
 console = Console()
 
@@ -376,6 +378,118 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db)
             console.print("[yellow]⚠[/yellow] M2 data not available (FRED API key required)")
             console.print("Set FRED_API_KEY in .env to enable M2 analysis")
         
+        # News & Sentiment Analysis
+        console.print(f"\n[bold cyan]📰 News & Sentiment Analysis[/bold cyan]")
+        console.print("=" * 60)
+        
+        news_collector = NewsCollector()
+        sentiment_analyzer = SentimentAnalyzer()
+        
+        # Collect news
+        news_by_category = news_collector.collect_market_news()
+        
+        # Analyze sentiment for each category
+        console.print("\n[bold]Analyzing Sentiment by Category:[/bold]")
+        console.print("─" * 60)
+        
+        sentiment_results = {}
+        
+        for category, articles in news_by_category.items():
+            if not articles:
+                continue
+            
+            # Analyze sentiment
+            analyzed_articles = sentiment_analyzer.analyze_articles(articles)
+            aggregate = sentiment_analyzer.aggregate_sentiment(analyzed_articles)
+            
+            sentiment_results[category] = {
+                'articles': analyzed_articles,
+                'aggregate': aggregate
+            }
+            
+            # Display category sentiment
+            category_name = category.replace('_', ' ').title()
+            score = aggregate['sentiment_score']
+            label = aggregate['sentiment_label']
+            count = aggregate['article_count']
+            
+            # Color based on sentiment
+            if label == 'positive':
+                color = 'green'
+                emoji = '🟢'
+            elif label == 'negative':
+                color = 'red'
+                emoji = '🔴'
+            else:
+                color = 'yellow'
+                emoji = '⚪'
+            
+            console.print(f"  {emoji} [{color}]{category_name:20}[/{color}] "
+                         f"Score: {score:+.3f} | "
+                         f"Articles: {count} "
+                         f"(+{aggregate['positive_count']}, -{aggregate['negative_count']})")
+        
+        # Overall market sentiment
+        console.print(f"\n[bold]Overall Market Assessment:[/bold]")
+        console.print("─" * 60)
+        
+        # Combine all articles
+        all_articles = news_collector.get_all_articles(news_by_category)
+        analyzed_all = sentiment_analyzer.analyze_articles(all_articles)
+        
+        overall_sentiment = sentiment_analyzer.aggregate_sentiment(analyzed_all)
+        market_analysis = sentiment_analyzer.analyze_market_sentiment(analyzed_all)
+        
+        console.print(f"Total Articles: {overall_sentiment['article_count']}")
+        console.print(f"Overall Sentiment: [bold]{overall_sentiment['sentiment_label'].upper()}[/bold] "
+                     f"(score: {overall_sentiment['sentiment_score']:+.3f})")
+        console.print(f"Market Tone: [bold]{market_analysis['market_sentiment'].upper()}[/bold]")
+        console.print(f"  • Bullish articles: {market_analysis['bullish_count']} ({market_analysis['bullish_ratio']:.1%})")
+        console.print(f"  • Bearish articles: {market_analysis['bearish_count']} ({market_analysis['bearish_ratio']:.1%})")
+        
+        # Recession probability
+        recession_result = sentiment_analyzer.calculate_recession_probability(analyzed_all)
+        risk_color = 'red' if recession_result['level'] == 'high' else 'yellow' if recession_result['level'] == 'moderate' else 'green'
+        console.print(f"\n[bold]Recession Probability:[/bold] [{risk_color}]{recession_result['probability']:.1%} ({recession_result['level'].upper()})[/{risk_color}]")
+        console.print(f"  • Recession mentions: {recession_result['mention_count']} articles")
+        if recession_result['mention_count'] > 0:
+            console.print(f"  • Recession sentiment: {recession_result['sentiment']:+.3f}")
+        
+        # AI bubble risk
+        bubble_result = sentiment_analyzer.calculate_ai_bubble_risk(analyzed_all)
+        bubble_color = 'red' if bubble_result['level'] == 'high' else 'yellow' if bubble_result['level'] == 'moderate' else 'green'
+        console.print(f"\n[bold]AI/Tech Bubble Risk:[/bold] [{bubble_color}]{bubble_result['risk']:.1%} ({bubble_result['level'].upper()})[/{bubble_color}]")
+        console.print(f"  • Bubble mentions: {bubble_result['mention_count']} articles")
+        if bubble_result['mention_count'] > 0:
+            console.print(f"  • Bubble sentiment: {bubble_result['sentiment']:+.3f}")
+        
+        # Store news in database
+        console.print(f"\n[dim]Storing {len(analyzed_all)} articles in database...[/dim]")
+        for article in analyzed_all:
+            # Determine related index
+            category = article.get('category', 'market_general')
+            if 'sp500' in category:
+                related_index = 'SP500'
+            elif 'cw8' in category:
+                related_index = 'CW8'
+            elif 'dollar' in category or 'eur' in category:
+                related_index = 'EURUSD'
+            else:
+                related_index = 'GENERAL'
+            
+            db.store_news_article(
+                title=article.get('title', ''),
+                description=article.get('description', ''),
+                source=article.get('source', ''),
+                published_at=article.get('published_at'),
+                url=article.get('url', ''),
+                sentiment_score=article.get('sentiment_score', 0),
+                sentiment_label=article.get('sentiment_label', 'neutral'),
+                related_index=related_index
+            )
+        
+        console.print(f"[green]✓[/green] News analysis complete")
+        
         # Summary
         console.print("\n[bold]📋 Summary[/bold]")
         console.print("=" * 60)
@@ -384,8 +498,8 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db)
         
         console.print("\n[bold green]✓ Phase 1 (Database & Data Collection) - Complete[/bold green]")
         console.print("[bold green]✓ Phase 2 (Technical Analysis) - Complete[/bold green]")
-        console.print("[dim]Phase 3 (News & Sentiment) - Next[/dim]")
-        console.print("[dim]Phase 4 (Decision Engine) - Coming soon[/dim]")
+        console.print("[bold green]✓ Phase 3 (News & Sentiment) - Complete[/bold green]")
+        console.print("[dim]Phase 4 (Decision Engine) - Next[/dim]")
 
 
 if __name__ == '__main__':

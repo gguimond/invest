@@ -508,3 +508,63 @@ class Database:
         """)
         result = cursor.fetchone()
         return result['value'] if result else None
+    
+    def store_news_article(self, title: str, description: str, source: str,
+                          published_at: Optional[datetime], url: str,
+                          sentiment_score: float, sentiment_label: str,
+                          related_index: str):
+        """
+        Store a news article with sentiment analysis
+        
+        Args:
+            title: Article title
+            description: Article description/summary
+            source: News source
+            published_at: Publication date
+            url: Article URL
+            sentiment_score: Sentiment score (-1 to 1)
+            sentiment_label: Sentiment label (positive/negative/neutral)
+            related_index: Related index (SP500, CW8, EURUSD, GENERAL)
+        """
+        cursor = self.conn.cursor()
+        
+        # Convert datetime to string if needed
+        pub_date_str = published_at.strftime('%Y-%m-%d %H:%M:%S') if published_at else None
+        
+        cursor.execute("""
+            INSERT OR REPLACE INTO news_articles
+            (title, description, source, published_at, url, 
+             sentiment_score, sentiment_label, related_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (title, description, source, pub_date_str, url,
+              sentiment_score, sentiment_label, related_index))
+        
+        self.conn.commit()
+    
+    def get_recent_news(self, days: int = 30, related_index: Optional[str] = None) -> pd.DataFrame:
+        """
+        Get recent news articles
+        
+        Args:
+            days: Number of days to look back
+            related_index: Filter by related index (optional)
+            
+        Returns:
+            DataFrame with news articles
+        """
+        query = """
+            SELECT title, description, source, published_at, url,
+                   sentiment_score, sentiment_label, related_index
+            FROM news_articles
+            WHERE julianday('now') - julianday(published_at) <= ?
+        """
+        params = [days]
+        
+        if related_index:
+            query += " AND related_index = ?"
+            params.append(related_index)
+        
+        query += " ORDER BY published_at DESC"
+        
+        df = pd.read_sql_query(query, self.conn, params=params, parse_dates=['published_at'])
+        return df
