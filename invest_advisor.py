@@ -331,15 +331,16 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
             # Comprehensive technical analysis
             analysis = analyzer.calculate_comprehensive_analysis(df)
             
-            # Current price and basic info
+            # Current price and basic info (currency-aware)
             current = analysis['dip']['current_price']
-            console.print(f"Current Price: [bold]${current:.2f}[/bold]")
+            currency_symbol = '€' if idx == 'STOXX600' else '$'
+            console.print(f"Current Price: [bold]{currency_symbol}{current:.2f}[/bold]")
             
             # Dip analysis
             dip = analysis['dip']
             dip_color = "green" if dip['is_major_dip'] else "yellow" if dip['is_significant_dip'] else "white"
             console.print(f"Dip from High: [{dip_color}]{dip['dip_percentage']:.2f}%[/{dip_color}] "
-                         f"(${dip['recent_high']:.2f}, {dip['days_from_high']} days ago)")
+                         f"({currency_symbol}{dip['recent_high']:.2f}, {dip['days_from_high']} days ago)")
             
             # Trend analysis
             trend = analysis['trend']
@@ -368,8 +369,8 @@ def main(init, force_init, stats, risk, index, verbose, force_update, export_db,
             # Support/Resistance
             sr = analysis['support_resistance']
             console.print(f"\nSupport/Resistance:")
-            console.print(f"  • Resistance: ${sr['resistance']:.2f} ({sr['distance_to_resistance']:+.1f}%)")
-            console.print(f"  • Support: ${sr['support']:.2f} ({sr['distance_to_support']:+.1f}%)")
+            console.print(f"  • Resistance: {currency_symbol}{sr['resistance']:.2f} ({sr['distance_to_resistance']:+.1f}%)")
+            console.print(f"  • Support: {currency_symbol}{sr['support']:.2f} ({sr['distance_to_support']:+.1f}%)")
         
         # Currency analysis (for EUR investors)
         console.print(f"\n[bold cyan]💱 EUR/USD Currency Analysis[/bold cyan]")

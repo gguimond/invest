@@ -43,14 +43,14 @@ class ReportGenerator:
             table.add_row(
                 "Current Price",
                 f"${sp500_data['current_price']:.2f}",
-                f"€{cw8_data['current_price']:.2f}",
+                f"${cw8_data['current_price']:.2f}",
                 f"€{stoxx600_data['current_price']:.2f}"
             )
         else:
             table.add_row(
                 "Current Price",
                 f"${sp500_data['current_price']:.2f}",
-                f"€{cw8_data['current_price']:.2f}"
+                f"${cw8_data['current_price']:.2f}"
             )
         
         # Dip from high
@@ -392,7 +392,7 @@ class ReportGenerator:
             f.write("-" * 80 + "\n")
             f.write(f"S&P 500:      ${report_data['sp500']['current_price']:.2f} ")
             f.write(f"({report_data['sp500']['dip_pct']:+.1f}% from high)\n")
-            f.write(f"MSCI World:   €{report_data['cw8']['current_price']:.2f} ")
+            f.write(f"MSCI World:   ${report_data['cw8']['current_price']:.2f} ")
             f.write(f"({report_data['cw8']['dip_pct']:+.1f}% from high)\n")
             
             if report_data.get('stoxx600'):
